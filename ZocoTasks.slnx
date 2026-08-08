@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="ZocoTasks.API/ZocoTasks.API.csproj" />
+  <Project Path="ZocoTasks.Business/ZocoTasks.Business.csproj" />
+  <Project Path="ZocoTasks.Domain/ZocoTasks.Domain.csproj" />
+  <Project Path="ZocoTasks.Infrastructure/ZocoTasks.Infrastructure.csproj" />
+  <Project Path="ZocoTasks.Tests/ZocoTasks.Tests.csproj" />
+</Solution>

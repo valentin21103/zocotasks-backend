@@ -1,0 +1,35 @@
+# Normalizacion de fin de linea.
+#
+# Sin esto, un repo creado en Windows guarda CRLF y cualquier corrida en Linux
+# (el CI, o un contenedor de deploy) ve el archivo entero como modificado. La
+# convencion es: LF dentro del repositorio, y en el checkout cada sistema recibe
+# lo que le corresponde.
+* text=auto eol=lf
+
+# Archivos que Windows exige con CRLF si o si.
+*.sln       text eol=crlf
+*.slnx      text eol=crlf
+*.csproj    text eol=crlf
+*.props     text eol=crlf
+*.targets   text eol=crlf
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# Scripts de shell: siempre LF, o no ejecutan en Linux.
+*.sh        text eol=lf
+
+# Mejor contexto en los diff de C#.
+*.cs        text diff=csharp
+
+# Binarios: que git no intente normalizarlos ni diffearlos.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.dll       binary
+*.exe       binary
+*.pfx       binary

@@ -1,0 +1,54 @@
+## ZOCO Tasks
+
+# --- Secretos: nunca versionar --------------------------------------------
+# Solo se versiona .env.example, que documenta las claves sin los valores.
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+
+# --- Salida de compilacion .NET --------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+*.user
+*.suo
+*.userprefs
+project.lock.json
+project.fragment.lock.json
+
+# --- Visual Studio / Rider / VS Code ----------------------------------------
+.vs/
+.idea/
+*.sln.docstates
+.vscode/*
+!.vscode/extensions.json
+
+# --- Herramientas de asistencia -----------------------------------------------
+# Preferencias locales de la maquina, no del proyecto.
+.claude/settings.local.json
+
+# --- Tests y cobertura -------------------------------------------------------
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+coverage*.cobertura.xml
+*.coverage
+*.trx
+
+# --- Frontend Angular ---------------------------------------------------------
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+yarn-error.log*
+
+# --- Sistema operativo --------------------------------------------------------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store

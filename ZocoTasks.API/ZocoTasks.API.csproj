@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>d41f0ea8-a20d-43e5-8452-4a640f8820ff</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+
+    <!--
+      Pin de seguridad, no una dependencia directa del codigo.
+      Microsoft.AspNetCore.OpenApi 10.0.10 arrastra transitivamente
+      Microsoft.OpenApi 2.0.0, que tiene una vulnerabilidad de severidad alta
+      (GHSA-v5pm-xwqc-g5wc). Se eleva a la ultima 2.x, que ya la corrige.
+      No se sube a 3.x porque introduce cambios de API incompatibles con
+      AddOpenApi de este release. Revisar y quitar cuando el paquete de
+      ASP.NET Core actualice su dependencia.
+    -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ZocoTasks.Business\ZocoTasks.Business.csproj" />
+    <ProjectReference Include="..\ZocoTasks.Infrastructure\ZocoTasks.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

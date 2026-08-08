@@ -1,0 +1,6 @@
+@ZocoTasks.API_HostAddress = http://localhost:5279
+
+GET {{ZocoTasks.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
