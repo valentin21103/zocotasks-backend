@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using ZocoTasks.Business.Interfaces;
 using ZocoTasks.Infrastructure.Data;
+using ZocoTasks.Infrastructure.Repositories;
 
 namespace ZocoTasks.Infrastructure;
 
@@ -49,6 +51,12 @@ public static class DependencyInjection
                 // snake_case en la base, PascalCase en C#. Sin esto Postgres
                 // exigiria comillas dobles en cada identificador.
                 .UseSnakeCaseNamingConvention());
+
+        // Repositorios. Scoped, igual que el DbContext: comparten la misma
+        // unidad de trabajo dentro de un request.
+        services.AddScoped<IComercioRepository, ComercioRepository>();
+        services.AddScoped<IInteraccionRepository, InteraccionRepository>();
+        services.AddScoped<ICatalogoRepository, CatalogoRepository>();
 
         return services;
     }

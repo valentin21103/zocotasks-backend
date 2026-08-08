@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZocoTasks.Domain.Common;
 using ZocoTasks.Domain.Entities;
 
 namespace ZocoTasks.Infrastructure.Data;
@@ -34,5 +35,34 @@ public class ZocoDbContext : DbContext
         modelBuilder.HasPostgresExtension("citext");
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ZocoDbContext).Assembly);
+    }
+
+    /// <summary>
+    /// Mantiene las fechas de alta y modificacion de toda entidad
+    /// <see cref="IAuditable"/>.
+    /// </summary>
+    /// <remarks>
+    /// Se hace aca y no en cada servicio para que sea imposible olvidarse:
+    /// un solo camino que no las setee dejaria datos inconsistentes, y ese es
+    /// el tipo de bug que no se nota hasta que alguien ordena por fecha.
+    /// Se usa siempre UTC porque las columnas son <c>timestamptz</c>.
+    /// </remarks>
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var ahora = DateTime.UtcNow;
+
+        foreach (var entrada in ChangeTracker.Entries<IAuditable>())
+        {
+            if (entrada.State == EntityState.Added)
+            {
+                entrada.Entity.FechaCreacion = ahora;
+            }
+            else if (entrada.State == EntityState.Modified)
+            {
+                entrada.Entity.FechaActualizacion = ahora;
+            }
+        }
+
+        return base.SaveChangesAsync(cancellationToken);
     }
 }
