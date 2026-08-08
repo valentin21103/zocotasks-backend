@@ -1,5 +1,4 @@
 using ZocoTasks.Business.DTOs;
-using ZocoTasks.Domain.Enums;
 
 namespace ZocoTasks.Business.Interfaces;
 
@@ -19,7 +18,7 @@ public interface IComercioService
         int id, ActualizarComercioDto dto, uint versionEsperada, CancellationToken ct);
 
     Task<ComercioDetalleDto> CambiarEstado(
-        int id, EstadoComercioEnum nuevoEstado, uint versionEsperada, CancellationToken ct);
+        int id, CambiarEstadoDto dto, uint versionEsperada, CancellationToken ct);
 
     /// <summary>Baja logica: marca fecha_eliminacion, no borra la fila.</summary>
     Task Eliminar(int id, CancellationToken ct);

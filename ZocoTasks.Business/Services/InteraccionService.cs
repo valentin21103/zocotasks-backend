@@ -1,3 +1,4 @@
+using FluentValidation;
 using ZocoTasks.Business.DTOs;
 using ZocoTasks.Business.Interfaces;
 using ZocoTasks.Domain.Entities;
@@ -8,10 +9,14 @@ namespace ZocoTasks.Business.Services;
 public class InteraccionService : IInteraccionService
 {
     private readonly IInteraccionRepository _repository;
+    private readonly IValidator<CrearInteraccionDto> _validadorCrear;
 
-    public InteraccionService(IInteraccionRepository repository)
+    public InteraccionService(
+        IInteraccionRepository repository,
+        IValidator<CrearInteraccionDto> validadorCrear)
     {
         _repository = repository;
+        _validadorCrear = validadorCrear;
     }
 
     public async Task<IReadOnlyList<InteraccionDto>> ListarPorComercio(
@@ -25,6 +30,7 @@ public class InteraccionService : IInteraccionService
     public async Task<InteraccionDto> Crear(
         int comercioId, CrearInteraccionDto dto, CancellationToken ct)
     {
+        await _validadorCrear.ValidateAndThrowAsync(dto, ct);
         await ValidarComercio(comercioId, ct);
 
         var interaccion = new Interaccion

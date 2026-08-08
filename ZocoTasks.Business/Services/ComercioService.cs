@@ -1,3 +1,4 @@
+using FluentValidation;
 using ZocoTasks.Business.DTOs;
 using ZocoTasks.Business.Interfaces;
 using ZocoTasks.Domain.Common;
@@ -10,10 +11,22 @@ namespace ZocoTasks.Business.Services;
 public class ComercioService : IComercioService
 {
     private readonly IComercioRepository _repository;
+    private readonly IValidator<CrearComercioDto> _validadorCrear;
+    private readonly IValidator<ActualizarComercioDto> _validadorActualizar;
+    private readonly IValidator<CambiarEstadoDto> _validadorEstado;
 
-    public ComercioService(IComercioRepository repository)
+    // La validacion se dispara aca y no en el controller para que valga sin
+    // importar quien llame al servicio: la API hoy, un job o un test manianna.
+    public ComercioService(
+        IComercioRepository repository,
+        IValidator<CrearComercioDto> validadorCrear,
+        IValidator<ActualizarComercioDto> validadorActualizar,
+        IValidator<CambiarEstadoDto> validadorEstado)
     {
         _repository = repository;
+        _validadorCrear = validadorCrear;
+        _validadorActualizar = validadorActualizar;
+        _validadorEstado = validadorEstado;
     }
 
     public async Task<PagedResult<ComercioListItemDto>> Listar(
@@ -36,8 +49,12 @@ public class ComercioService : IComercioService
 
     public async Task<ComercioDetalleDto> Crear(CrearComercioDto dto, CancellationToken ct)
     {
-        // El formato del CUIT ya lo valido FluentValidation; aca se controla lo
-        // que solo puede saberse consultando la base.
+        // Lanza ValidationException, que el middleware traduce a 400 con el
+        // detalle campo por campo.
+        await _validadorCrear.ValidateAndThrowAsync(dto, ct);
+
+        // El formato del CUIT ya quedo validado arriba; aca se controla lo que
+        // solo puede saberse consultando la base.
         var cuit = Cuit.Normalizar(dto.Cuit);
 
         await ValidarCuitDisponible(cuit, null, ct);
@@ -67,6 +84,8 @@ public class ComercioService : IComercioService
     public async Task<ComercioDetalleDto> Actualizar(
         int id, ActualizarComercioDto dto, uint versionEsperada, CancellationToken ct)
     {
+        await _validadorActualizar.ValidateAndThrowAsync(dto, ct);
+
         var comercio = await _repository.ObtenerParaEditar(id, ct);
 
         if (comercio == null)
@@ -93,8 +112,10 @@ public class ComercioService : IComercioService
     }
 
     public async Task<ComercioDetalleDto> CambiarEstado(
-        int id, EstadoComercioEnum nuevoEstado, uint versionEsperada, CancellationToken ct)
+        int id, CambiarEstadoDto dto, uint versionEsperada, CancellationToken ct)
     {
+        await _validadorEstado.ValidateAndThrowAsync(dto, ct);
+
         var comercio = await _repository.ObtenerParaEditar(id, ct);
 
         if (comercio == null)
@@ -102,9 +123,10 @@ public class ComercioService : IComercioService
             throw new EntidadNoEncontradaException("Comercio", id);
         }
 
-        // La validacion de la transicion la hace el dominio, no este servicio:
-        // si lanza, el middleware lo traduce a 409.
-        comercio.CambiarEstado(nuevoEstado);
+        // Si la transicion es posible lo decide el dominio, no este servicio:
+        // es la unica pieza que conoce las reglas del pipeline. Si no lo es,
+        // lanza y el middleware lo traduce a 409.
+        comercio.CambiarEstado(dto.NuevoEstado);
 
         await _repository.GuardarConControlDeConcurrencia(comercio, versionEsperada, ct);
 
