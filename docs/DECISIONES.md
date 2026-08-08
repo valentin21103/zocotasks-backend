@@ -78,7 +78,35 @@ tarde, permitiría atributos de EF en las entidades para ir más rápido.
 
 ---
 
-### 1.3 DTOs en `Business`, no en `Domain`
+### 1.3 El registro de dependencias vive en `Program.cs`, no en un archivo por capa
+
+**Contexto.** Cada capa tenía un `DependencyInjection.cs` con un método de
+extensión (`AddInfrastructure`, `AddBusiness`), y `Program.cs` solo los llamaba.
+
+**El argumento a favor de esa forma.** La capa API no necesitaba conocer
+`ZocoDbContext` ni las clases de repositorio: bastaba con invocar un método.
+Es una separación de capas más estricta.
+
+**Decisión: se aplanó todo a `Program.cs`.**
+
+**Por qué.** El beneficio era real pero chico, y el costo era concreto: para
+responder *"¿dónde te conectás a la base?"* había que abrir otro archivo y saber
+qué es un método de extensión. En un proyecto de cuatro assemblies y un solo
+desarrollador, esa indirección no se paga. **Código que no se puede explicar de
+un vistazo resta más de lo que suma la prolijidad.**
+
+Hoy la conexión se lee en la línea 17 de `Program.cs`, junto al resto del
+arranque, en orden de arriba hacia abajo.
+
+**Lo que se perdió, dicho explícitamente.** `ZocoTasks.API` ahora referencia por
+nombre a `ZocoDbContext` y a las tres clases de repositorio.
+
+**Cuándo volvería atrás.** Con varios equipos tocando el mismo `Program.cs`, o
+cuando el arranque pase de unas 120 líneas y empiece a ser difícil de leer.
+
+---
+
+### 1.4 DTOs en `Business`, no en `Domain`
 
 **Decisión.** Los DTOs viven en `ZocoTasks.Business/DTOs/`.
 
@@ -623,6 +651,85 @@ Solo aporta `Id`. Es un punto de extensión para el interceptor de auditoría, q
 necesita identificar entidades con clave entera de forma genérica. **Si la
 auditoría no se implementa, esta clase queda sin justificación** y conviene
 eliminarla.
+
+---
+
+## 8.5 Capa de aplicación y API
+
+### 8.5.1 Repositorios concretos, sin `IGenericRepository<T>`
+
+**Decisión.** `IComercioRepository`, `IInteraccionRepository` y
+`ICatalogoRepository`. No hay repositorio genérico.
+
+**Por qué.** `DbSet<T>` ya *es* un repositorio genérico: envolverlo no elimina
+repetición, le cambia el nombre. Y el mínimo común denominador que puede exponer
+una interfaz genérica (traer por id, traer todos) no alcanza para la consulta
+principal, que necesita includes, full text search, orden dinámico, paginación y
+proyección. Para cubrirla habría que exponer `IQueryable`, y ahí la abstracción
+deja de abstraer: quien la use termina escribiendo LINQ de EF Core igual.
+
+**El argumento de testabilidad, que es más flojo de lo que suena.** Se dice que
+un repositorio permite testear servicios sin base. Pero un mock no valida FKs,
+no aplica el índice único de CUIT y no lanza `DbUpdateConcurrencyException`: los
+tests pasan y producción rompe. Los tests que importan acá van contra PostgreSQL
+real.
+
+### 8.5.2 La validación tiene dos niveles, y devuelven códigos distintos
+
+| Qué se valida | Dónde | Respuesta |
+|---|---|---|
+| Formato, obligatoriedad, largos, CUIT por módulo 11 | FluentValidation | **400** con el detalle campo por campo |
+| CUIT repetido, rubro inexistente o dado de baja | El servicio, consultando la base | **422** |
+
+**Por qué separarlos.** Un 400 dice "escribiste mal"; un 422 dice "está bien
+escrito pero el estado del sistema no lo permite". Para el usuario son problemas
+distintos y ameritan mensajes distintos: uno se corrige en el formulario, el
+otro no.
+
+### 8.5.3 La validación se dispara en el servicio, no en el controller
+
+**Por qué.** Así vale sin importar quién llame: la API hoy, un job de
+importación o un test mañana. Si viviera en el controller, cualquier otro camino
+de entrada se saltearía las reglas.
+
+### 8.5.4 El cambio de estado tiene su propio endpoint
+
+**Decisión.** `PATCH /api/comercios/{id}/estado`, y `ActualizarComercioDto`
+**no** incluye el campo estado.
+
+**Por qué.** Si el estado se pudiera mandar en el `PUT` general, alguien podría
+escribir `estado: "Aprobado"` en una edición cualquiera y saltearse la máquina
+de estados. Separándolo, pasar por las reglas del pipeline es inevitable: no hay
+otro camino.
+
+### 8.5.5 Orden por lista blanca
+
+**Decisión.** El campo de ordenamiento se resuelve con un `switch` sobre valores
+conocidos; lo que no está, cae al orden por defecto.
+
+**Por qué.** La alternativa —concatenar el nombre del campo recibido dentro de
+la consulta— es una puerta de inyección SQL. Con la lista blanca, un parámetro
+malicioso simplemente no matchea.
+
+### 8.5.6 Las fechas de auditoría se completan en `SaveChangesAsync`
+
+**Por qué.** En un solo lugar, para toda entidad `IAuditable`. Si cada servicio
+tuviera que setearlas, alcanza con que un camino se olvide para dejar datos
+inconsistentes — y es el tipo de bug que no se nota hasta que alguien ordena por
+fecha.
+
+### 8.5.7 Los enums viajan como texto en el JSON
+
+**Por qué.** `"estado": "Documentacion"` en lugar de `"estado": 4`. La API se
+lee sola y el frontend no tiene que mantener su propia tabla de equivalencias,
+que es una fuente clásica de desincronización.
+
+### 8.5.8 CORS expone el header `ETag`
+
+**Por qué.** Por defecto el navegador **no deja leer** headers de respuesta que
+no sean los de la lista segura. Sin `WithExposedHeaders("ETag")`, el front
+recibe el ETag pero JavaScript no puede verlo, y sin verlo no puede mandar
+`If-Match`. Toda la concurrencia optimista se cae por una línea que falta.
 
 ---
 

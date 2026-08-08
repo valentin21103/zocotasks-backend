@@ -32,15 +32,58 @@ conflictos de edición concurrente y análisis asistido por IA.
 
 | Bloque | Estado |
 |---|---|
-| Modelo de dominio, persistencia y migración inicial | ✅ Verificado contra base real |
-| Repositorios, servicios, validación y controllers | 🚧 En curso |
-| Bonus: rate limiting, full text, auditoría, CI | ⬜ Pendiente |
-| Feature "Analizar oportunidad" | ⬜ Pendiente |
-| Autenticación y roles | ⬜ Pendiente |
-| Tests unitarios y de integración | ⬜ Pendiente |
+| Modelo de dominio, persistencia y migración | ✅ Verificado contra base real |
+| API REST: CRUD, búsqueda, filtros, orden, paginación | ✅ 14 endpoints verificados |
+| Concurrencia optimista (ETag / If-Match / 409) | ✅ Verificado con dos escrituras concurrentes |
+| Validación server-side y manejo de errores | ✅ |
+| Tests unitarios | ✅ 30 en verde |
+| CI (GitHub Actions) | ✅ |
+| Feature "Analizar oportunidad" | 🚧 En curso |
+| Tests de integración | ⬜ Pendiente |
+| Docker y deploy público | ⬜ Pendiente |
+| Autenticación, roles, auditoría, rate limiting | ⬜ Pendiente |
 
-Lo marcado como verificado no significa "compila": significa que se comprobó
-su comportamiento contra PostgreSQL real. Ver [Verificaciones](#verificaciones-realizadas).
+Lo marcado como verificado no significa "compila": significa que se comprobó su
+comportamiento contra PostgreSQL real.
+Ver [Verificaciones](#verificaciones-realizadas).
+
+## Endpoints
+
+```
+GET    /api/comercios                       búsqueda full text, filtros, orden, paginación
+GET    /api/comercios/{id}                  detalle + interacciones · devuelve ETag
+POST   /api/comercios                       201 + Location
+PUT    /api/comercios/{id}                  requiere If-Match
+PATCH  /api/comercios/{id}/estado           requiere If-Match
+DELETE /api/comercios/{id}                  baja lógica
+
+GET    /api/comercios/{id}/interacciones
+POST   /api/comercios/{id}/interacciones
+DELETE /api/comercios/{id}/interacciones/{interaccionId}
+
+GET    /api/catalogos/estados
+GET    /api/catalogos/rubros
+GET    /api/catalogos/tipos-interaccion
+
+GET    /api/health                          sonda de vida, no toca la base
+GET    /api/health/db                       verifica conexión y migraciones
+```
+
+El contrato completo, con los cuerpos de cada petición y respuesta, está en
+**[docs/FRONTEND.md](docs/FRONTEND.md)**.
+
+### Códigos de respuesta
+
+Todos los errores salen como `ProblemDetails` (RFC 7807) con un campo `codigo`
+estable, para que el cliente discrimine sin depender del texto.
+
+| Código | Cuándo |
+|---|---|
+| `400` | Formato inválido — incluye el detalle **campo por campo** |
+| `404` | No existe o fue dado de baja |
+| `409` | Transición de estado inválida **o** conflicto de concurrencia |
+| `422` | Regla de negocio: CUIT repetido, rubro dado de baja |
+| `428` | Falta el header `If-Match` en una operación que modifica |
 
 ---
 
