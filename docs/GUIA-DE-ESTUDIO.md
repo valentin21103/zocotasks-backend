@@ -108,13 +108,11 @@ combos nuevos sin romper el pasado.
 
 ### ¿No guardás un historial de cambios de estado?
 
-**Es una pregunta trampa: la respuesta correcta es que lo tuve y lo saqué.**
+**No, y es una decisión, no un olvido.** Lo evalué: daría señal temporal al
+análisis de IA —"hace veinte días que está trabado en Documentación"— que es un
+dato que no existe en ningún otro campo.
 
-Lo diseñé, lo implementé y lo migré. Le daba señal temporal al análisis de IA —
-"hace veinte días que está trabado en Documentación"— que es un dato que no
-existe en ningún otro campo.
-
-Lo quité por dos razones:
+Lo descarté por dos razones:
 
 1. La consigna define la entrada del análisis como *"la información del comercio
    y de sus notas/interacciones"*. El historial no está en esa lista.
@@ -122,17 +120,16 @@ Lo quité por dos razones:
    genérica desde un interceptor de `SaveChanges`. Una tabla dedicada a auditar
    solo el estado sería un caso particular de algo ya cubierto.
 
-**El costo lo asumo y lo digo:** el análisis pierde la noción de cuánto tiempo
-lleva el comercio en su estado actual.
+**El costo lo asumo y lo digo:** el análisis no sabe cuánto tiempo lleva el
+comercio en su estado actual.
 
-**Lo traería de vuelta** si hubiera que reportar sobre el embudo: tiempo
-promedio por etapa, tasa de conversión entre estados. Ahí el interceptor
-genérico no alcanza, porque guarda los cambios como texto y no en un formato
-consultable.
+**Lo agregaría** si hubiera que reportar sobre el embudo: tiempo promedio por
+etapa, tasa de conversión entre estados. Ahí el interceptor genérico no alcanza,
+porque guarda los cambios como texto y no en un formato consultable.
 
-*Lo que no se perdió:* la garantía de integridad nunca dependió de la tabla.
-`Comercio.CambiarEstado()` sigue siendo el único camino para transicionar y
-sigue validando contra la máquina de estados antes de mutar.
+*Lo que no depende de esa tabla:* la integridad del pipeline.
+`Comercio.CambiarEstado()` es el único camino para transicionar y valida contra
+la máquina de estados antes de mutar.
 
 ### ¿Por qué no guardás el resultado del análisis de IA?
 
@@ -440,11 +437,11 @@ La consigna pide `Comercio` e `Interacciones`. Hay nueve tablas.
 Cinco de nueve se defienden solas. Las otras cuatro dependen de que se
 implementen los bonus.
 
-**Y hubo once.** `historial_estado` y `analisis_oportunidad` se implementaron y
-después se quitaron al revisar si cada tabla respondía a un requerimiento real.
-Si te preguntan por el tamaño del modelo, esa es la mejor respuesta que tenés:
-*"nueve, y llegué a nueve sacando dos que había hecho de más"*. Muestra que
-revisaste el diseño en vez de acumular.
+**El criterio que aplicás, si te lo preguntan:** una tabla existe si responde a
+algo que la consigna pide o a un bonus que se va a implementar. No alcanza con
+que sea buena idea. Ese mismo criterio es el que deja afuera el historial de
+estados y la persistencia del análisis, y podés nombrarlos como ejemplos de
+cosas que evaluaste y descartaste.
 
 ---
 
@@ -473,17 +470,17 @@ código y los estados no."*
 
 ### 3. Por qué el modelo tiene nueve tablas y no dos
 
-*"La consigna pide dos entidades; el modelo tiene nueve, y cada una responde a
+*"La consigna pide dos entidades; el modelo tiene nueve y cada una responde a
 algo concreto. La regla que usé es simple: si el valor tiene lógica asociada va
 como enum en el código, y si es una etiqueta que el usuario administra va como
 tabla. El estado tiene una máquina de estados detrás y su lista es cerrada, así
 que es enum —con tabla lookup encima, porque necesita `orden` y `es_final`—.
-El rubro y el tipo de interacción son etiquetas sin lógica y la consigna los
-plantea como listas abiertas, así que son tabla."*
+El rubro y el tipo de interacción son etiquetas sin lógica, y la consigna los
+plantea como listas abiertas: dice «por ejemplo» al enumerar los tipos de
+interacción, mientras que para los estados dice «estados posibles». Así que van
+como tabla."*
 
-*"Y llegué a nueve sacando dos. Había hecho `historial_estado` y
-`analisis_oportunidad`, las implementé, y al revisar si respondían a un
-requerimiento real decidí quitarlas: la primera porque la consigna alimenta el
-análisis con notas e interacciones, no con historial; la segunda porque pide
-generar el análisis, no guardarlo. Preferí el modelo más chico y usar ese
-tiempo en lo que sí estaba pedido."*
+*"Y el criterio corta en los dos sentidos: una tabla existe si responde a algo
+pedido o a un bonus que voy a implementar, no porque sea buena idea. Por eso
+descarté un historial de cambios de estado y descarté persistir el análisis de
+IA — evalué las dos y ninguna resistía esa prueba."*

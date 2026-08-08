@@ -17,6 +17,8 @@ un dogma, no una decisión de ingeniería.
 - [5. Configuración y secretos](#5-configuración-y-secretos)
 - [6. Seguridad de dependencias](#6-seguridad-de-dependencias)
 - [7. Tooling y repositorio](#7-tooling-y-repositorio)
+- [9. Funcionalidad inteligente](#9-funcionalidad-inteligente)
+- [10. Entrega: CI/CD, contenedor y deploy](#10-entrega-cicd-contenedor-y-deploy)
 
 ---
 
@@ -138,17 +140,16 @@ combos nuevos sin romper el pasado.
 
 ---
 
-### 2.3 No existe `historial_estado`
+### 2.3 Sin tabla de historial de estados
 
-**Contexto.** El diseño inicial incluía una tabla con una fila por cada
-transición del pipeline: estado anterior, estado nuevo, usuario, fecha y motivo.
-Se implementó, se migró contra la base real, y después se quitó.
+**Contexto.** Un CRM suele registrar cada transición del pipeline en una tabla
+aparte: estado anterior, estado nuevo, usuario, fecha y motivo.
 
-**El argumento que tenía a favor.** Le daba *señal temporal* al feature de IA: un
-comercio veinte días trabado en "Documentación" es información útil para
-recomendar el próximo paso, y no existe en ningún otro campo.
+**El argumento a favor.** Daría *señal temporal* al feature de IA: un comercio
+veinte días trabado en "Documentación" es información útil para recomendar el
+próximo paso, y no existe en ningún otro campo.
 
-**Por qué se quitó igual.** Dos razones:
+**Decisión: no se modela.** Dos razones:
 
 1. La consigna define la entrada del análisis como *"la información del comercio
    y de sus **notas/interacciones**"*. El historial no está en esa lista, y el
@@ -159,23 +160,22 @@ recomendar el próximo paso, y no existe en ningún otro campo.
 
 **Costo asumido.** El análisis pierde la noción de "hace cuánto que está acá".
 
-**Cuándo la traería de vuelta.** Si apareciera un requerimiento de reporting
-sobre el embudo —tiempo promedio por etapa, tasa de conversión entre estados—
-la tabla se vuelve necesaria y el interceptor genérico no alcanza, porque
-guarda los cambios como texto y no en un formato consultable.
+**Cuándo la agregaría.** Si apareciera un requerimiento de reporting sobre el
+embudo —tiempo promedio por etapa, tasa de conversión entre estados— la tabla
+se vuelve necesaria y el interceptor genérico no alcanza, porque guarda los
+cambios como texto y no en un formato consultable.
 
-**Lo que sí se conservó.** La garantía de integridad no dependía de la tabla:
-`Comercio.CambiarEstado()` sigue siendo el único camino para transicionar y
-sigue validando contra la máquina de estados antes de mutar.
+**Lo que no depende de ella.** La integridad del pipeline:
+`Comercio.CambiarEstado()` es el único camino para transicionar y valida contra
+la máquina de estados antes de mutar, con tabla o sin ella.
 
 ---
 
 ### 2.4 El análisis **no** se persiste
 
-**Contexto.** "Analizar oportunidad" llama a un modelo de lenguaje. Se podía
+**Contexto.** "Analizar oportunidad" llama a un modelo de lenguaje. Se puede
 guardar el resultado con un hash del contexto para cachearlo, o devolverlo al
-vuelo. La primera versión persistía, con tabla propia y campos `jsonb` para las
-preguntas sugeridas y los datos faltantes.
+vuelo.
 
 **Decisión.** No se persiste. El endpoint arma el contexto, llama al proveedor y
 devuelve el resultado.
@@ -574,16 +574,14 @@ limpio después.
 > Autocrítica del estado actual. Una decisión que nadie revisa deja de ser una
 > decisión y pasa a ser una costumbre.
 
-### 8.0 Precedente: dos tablas ya se eliminaron
+### 8.0 El criterio que ordena el tamaño del modelo
 
-`historial_estado` y `analisis_oportunidad` se diseñaron, implementaron y
-migraron, y después se quitaron al revisar si cada una respondía a un
-requerimiento real (ver [2.3](#23-no-existe-historial_estado) y
-[2.4](#24-el-análisis-no-se-persiste)). El modelo pasó de 11 tablas a 9.
+**Una tabla existe si responde a algo que la consigna pide o a un bonus que se
+va a implementar. No alcanza con que sea "buena idea".**
 
-Vale dejarlo asentado porque fija el criterio: **una tabla se queda si responde
-a algo que la consigna pide o a un bonus que se va a implementar. No alcanza con
-que sea "buena idea".**
+Es el criterio que deja afuera el historial de estados y la persistencia del
+análisis (ver [2.3](#23-sin-tabla-de-historial-de-estados) y
+[2.4](#24-el-análisis-no-se-persiste)), y el que se aplica a lo que sigue.
 
 ### 8.1 Deuda abierta: cuatro tablas sin código que las use
 
@@ -625,6 +623,128 @@ Solo aporta `Id`. Es un punto de extensión para el interceptor de auditoría, q
 necesita identificar entidades con clave entera de forma genérica. **Si la
 auditoría no se implementa, esta clase queda sin justificación** y conviene
 eliminarla.
+
+---
+
+## 9. Funcionalidad inteligente
+
+> Estado: **decidido, pendiente de implementar.**
+
+### 9.1 OpenAI como proveedor, con *structured outputs*
+
+**Contexto.** La consigna es explícita: *"no importa qué proveedor o tecnología
+utilicen"*. El problema real no es cuál elegir, sino **cómo garantizar que la
+respuesta tenga siempre la forma que la consigna pide**: resumen, nivel de
+interés, próximo paso, tres preguntas y datos faltantes.
+
+**Opciones para obtener esa estructura.**
+
+| Opción | Problema |
+|---|---|
+| Pedir el formato en el prompt y parsear texto libre | Frágil. El modelo agrega preámbulos, cambia el orden, devuelve cuatro preguntas en vez de tres |
+| Pedir JSON en el prompt y deserializar | Mejor, pero el JSON puede venir malformado o envuelto en ```` ``` ```` |
+| **JSON Schema con `strict: true`** | Ninguno relevante |
+
+**Decisión.** OpenAI con *structured outputs*: se le pasa el JSON Schema de
+`AnalisisOportunidadDto` con `strict: true`, y la API **garantiza a nivel de
+decodificación** que la respuesta valida contra ese esquema.
+
+**Por qué.** Elimina por completo la clase de bugs de "el modelo respondió algo
+que no puedo parsear". No hay que escribir defensas contra formatos
+inesperados: la respuesta o cumple el contrato, o la llamada falla de forma
+explícita. Es la diferencia entre confiar en un prompt y tener una garantía.
+
+**Cuándo elegiría distinto.** Si el proveedor tuviera que ser intercambiable, el
+esquema estricto es específico de OpenAI y habría que degradar a "pedir JSON y
+validar a mano" para mantener portabilidad.
+
+### 9.2 Fallo del proveedor: respuesta degradada, nunca un 500
+
+**Decisión.** Si la llamada falla —sin API key, timeout, cuota agotada, caída
+del servicio— el endpoint **no** devuelve 500. Devuelve el análisis con nivel de
+interés `Indeterminado` y un mensaje explicando que no se pudo generar.
+
+**Por qué.** Un proveedor externo caído no es un error de esta aplicación. El
+resto del sistema sigue funcionando perfectamente, y el usuario merece saber
+"no se pudo analizar ahora" en vez de una pantalla de error genérica. Además,
+el enum `NivelInteres` tiene el valor `Indeterminado` justamente para esto:
+**si el modelo no respondió, el sistema no inventa un nivel de interés.**
+
+Se aplica un timeout explícito para que un proveedor lento no deje colgada la
+request.
+
+---
+
+## 10. Entrega: CI/CD, contenedor y deploy
+
+> Estado: **decidido, pendiente de implementar.**
+
+### 10.1 GitHub Actions valida; Render despliega
+
+**Contexto.** Render puede desplegar solo con cada push al repositorio. Si se
+deja así, **despliega aunque los tests fallen** — que es exactamente lo que un
+pipeline de CI/CD debería impedir.
+
+**Opciones.**
+1. Auto-deploy de Render activado + Actions corriendo tests en paralelo. Los
+   tests informan, pero no frenan nada: el código roto llega a producción igual.
+2. Actions construye la imagen, la sube a un registry y Render la toma. Más
+   control, bastante más plomería.
+3. **Auto-deploy de Render apagado + Actions dispara el deploy solo si los tests
+   pasan.**
+
+**Decisión.** La 3. El workflow hace `restore → build → test`, y **solo si todo
+pasa y la rama es `main`**, hace una llamada al *Deploy Hook* de Render.
+
+**Por qué.** Es el pipeline más simple que realmente **corta**. Los tests dejan
+de ser decorativos: si fallan, el deploy no ocurre. Y no hay que administrar un
+registry de imágenes ni credenciales de registry — Render sigue construyendo,
+solo que cuando se le avisa.
+
+La URL del Deploy Hook es un secreto y va en **GitHub Secrets**, nunca en el
+repositorio.
+
+### 10.2 Dockerfile multi-etapa
+
+**Decisión.** Dos etapas: el SDK de .NET compila y publica; la imagen final
+parte del runtime de ASP.NET y solo copia el resultado.
+
+**Por qué.** El SDK pesa varias veces más que el runtime y **no tiene nada que
+hacer en producción**: incluirlo agrega superficie de ataque (compiladores,
+herramientas) sin aportar nada en tiempo de ejecución.
+
+La imagen corre con un **usuario no root**. Si alguien logra ejecutar código
+dentro del contenedor, no arranca con privilegios de administrador.
+
+### 10.3 Las migraciones corren al arrancar la aplicación
+
+**Contexto.** En Render no hay una consola donde correr `dotnet ef database
+update` a mano después de cada deploy.
+
+**Decisión.** La aplicación aplica las migraciones pendientes en el arranque.
+
+**Por qué.** Un deploy deja la base y el código sincronizados sin intervención
+manual, que es justamente lo que se espera de un despliegue automatizado.
+
+**Contrapartida conocida y asumida.** Con varias instancias arrancando a la vez,
+dos podrían intentar migrar en simultáneo. EF toma un lock a nivel de base para
+serializarlo, pero el patrón correcto a partir de cierta escala es un paso de
+migración separado del arranque (Render lo soporta como *Pre-Deploy Command*).
+Para una instancia única es innecesario.
+
+### 10.4 Render: qué esperar del tier gratuito
+
+No es una decisión sino una limitación a tener presente, porque afecta la
+demostración: el servicio **se suspende tras unos 15 minutos sin tráfico**, y la
+primera request después de eso tarda alrededor de un minuto en responder
+mientras el contenedor vuelve a levantar. Neon hace lo mismo con su compute.
+
+Mitigación al demostrar: pegarle una vez al endpoint de salud unos minutos antes
+de mostrar la aplicación.
+
+Las variables de entorno se cargan en el panel de Render, **nunca dentro de la
+imagen**: una imagen con secretos adentro los expone a cualquiera que la
+descargue.
 
 ---
 

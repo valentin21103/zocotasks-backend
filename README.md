@@ -209,20 +209,35 @@ evidencia del trabajo comercial. `fecha_eliminacion` nullable con filtro global
 de EF: los eliminados desaparecen de toda consulta salvo que se pidan
 explícitamente.
 
-### Lo que se decidió **no** modelar
+### Lo que deliberadamente **queda fuera** del modelo
 
-Dos tablas se diseñaron, se implementaron y después se quitaron a conciencia.
-Queda documentado porque la decisión de sacarlas es parte del diseño:
+Dos estructuras que aparecen naturalmente en un CRM y que acá se descartaron a
+conciencia. Se documentan porque decidir qué no construir también es diseño:
 
-| Tabla quitada | Qué hacía | Por qué se quitó |
-|---|---|---|
-| `historial_estado` | Una fila por transición del pipeline | La consigna alimenta el análisis con «notas/interacciones», no con historial. El bonus de auditoría, si se implementa, registra los cambios de forma genérica desde un interceptor — no hace falta una tabla dedicada solo al estado |
-| `analisis_oportunidad` | Persistía el resultado de la IA con un hash para cachearlo | La consigna pide **generar** el análisis, no guardarlo. Regenerarlo en cada consulta refleja el estado actual del comercio. Guardarlo abría la puerta a un módulo de «análisis anteriores» que nadie pidió |
+**Una tabla de historial de estados.** Registrar cada transición del pipeline
+daría trazabilidad del embudo, pero la consigna define la entrada del análisis
+como *«la información del comercio y de sus notas/interacciones»* — el historial
+no está en esa lista. Y el bonus de auditoría, cuando se implemente, registra
+**todo** cambio de forma genérica desde un interceptor de `SaveChanges`: una
+tabla dedicada a auditar únicamente el estado sería un caso particular de algo
+ya cubierto.
 
-El costo asumido está explícito: sin caché, cada análisis es una llamada al
-modelo, y como los modelos de lenguaje no son determinísticos, el texto cambia
-entre corridas. Se aceptó a cambio de un modelo más chico y de no gastar el
-tiempo de la prueba en una funcionalidad fuera de alcance.
+*Costo asumido:* el análisis no puede saber hace cuánto que el comercio está en
+su estado actual. *Se justificaría* con requerimientos de reporting sobre el
+embudo —tiempo promedio por etapa, tasa de conversión— donde el interceptor
+genérico no alcanza porque guarda los cambios como texto y no en formato
+consultable.
+
+**Persistir el resultado del análisis de IA.** La consigna pide **generar** el
+análisis, no guardarlo. Regenerarlo en cada consulta garantiza que siempre
+refleje el estado actual del comercio, sin riesgo de presentar uno viejo como
+vigente. Persistirlo, además, abre la puerta a un módulo de «análisis
+anteriores» que la consigna no pide.
+
+*Costos asumidos:* cada consulta es una llamada al modelo, que se paga y demora
+segundos; y como los modelos de lenguaje no son determinísticos, el texto puede
+variar entre corridas. *Se justificaría* con volumen real de uso: la
+implementación sería SHA256 del contexto como clave de caché.
 
 > El razonamiento completo de cada decisión, con las alternativas descartadas y
 > las condiciones bajo las cuales elegiría distinto, está en
@@ -386,7 +401,6 @@ real (Neon, `sa-east-1`):
 | Qué se verificó | Resultado |
 |---|---|
 | Tablas creadas | 9 + historial de migraciones |
-| Migraciones aplicadas | 2 (esquema inicial + simplificación del modelo) |
 | Catálogos sembrados | 6 estados, 5 tipos, 9 rubros, 2 roles |
 | `xmin` cambia en cada UPDATE | `2056` → `2057` ✅ |
 | `xmin` **no** se intenta crear en el DDL | Confirmado (es columna de sistema; crearla fallaría) |
