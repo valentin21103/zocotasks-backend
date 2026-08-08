@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using ZocoTasks.Infrastructure.Persistence;
+using ZocoTasks.Infrastructure.Data;
 
 namespace ZocoTasks.Infrastructure;
 

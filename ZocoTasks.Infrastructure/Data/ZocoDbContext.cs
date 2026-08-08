@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ZocoTasks.Domain.Entities;
 
-namespace ZocoTasks.Infrastructure.Persistence;
+namespace ZocoTasks.Infrastructure.Data;
 
 /// <summary>
 /// Contexto de EF Core. La convencion snake_case no se declara aca sino en

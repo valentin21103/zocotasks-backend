@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace ZocoTasks.Infrastructure.Persistence;
+namespace ZocoTasks.Infrastructure.Data;
 
 /// <summary>
 /// Factory que usan las herramientas de linea de comandos de EF Core

@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZocoTasks.Domain.Entities;
 
-namespace ZocoTasks.Infrastructure.Persistence.Configurations;
+namespace ZocoTasks.Infrastructure.Data.Configurations;
 
 public class InteraccionConfiguration : IEntityTypeConfiguration<Interaccion>
 {

@@ -1,0 +1,81 @@
+name: CI
+
+# Se ejecuta en cada push a main y en cada pull request contra main.
+# workflow_dispatch permite dispararlo a mano desde la pestania Actions.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  # Evita que el SDK gaste tiempo en telemetria y en el mensaje de bienvenida.
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+
+jobs:
+  build-y-test:
+    name: Compilar y testear
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Traer el codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar el SDK de .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # Cachear los paquetes ahorra alrededor de un minuto por corrida.
+      # La clave depende de los .csproj: si cambia una dependencia, se
+      # invalida sola.
+      - name: Cachear paquetes NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Este paso tambien actua como control de seguridad: el restore falla
+      # con NU1903 si alguna dependencia, directa o transitiva, tiene una
+      # vulnerabilidad conocida.
+      - name: Restaurar dependencias
+        run: dotnet restore
+
+      - name: Compilar
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Ejecutar tests
+        run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=resultados.trx"
+
+      # Se sube siempre, incluso si los tests fallan: es cuando mas sirve.
+      - name: Publicar resultados de los tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-tests
+          path: "**/TestResults/*.trx"
+          if-no-files-found: ignore
+
+  desplegar:
+    name: Desplegar en Render
+    # La dependencia es lo que hace que esto sea un pipeline y no dos tareas
+    # sueltas: si los tests fallan, este job no arranca y el deploy no ocurre.
+    needs: build-y-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Disparar el deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK no esta configurado todavia. Se omite el deploy."
+            exit 0
+          fi
+          curl --silent --show-error --fail-with-body -X POST "$HOOK"
+          echo "::notice::Deploy disparado en Render."

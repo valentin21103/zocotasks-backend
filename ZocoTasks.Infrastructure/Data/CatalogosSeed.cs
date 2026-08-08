@@ -2,7 +2,7 @@ using ZocoTasks.Domain.Common;
 using ZocoTasks.Domain.Entities;
 using ZocoTasks.Domain.Enums;
 
-namespace ZocoTasks.Infrastructure.Persistence.Seed;
+namespace ZocoTasks.Infrastructure.Data;
 
 /// <summary>
 /// Datos de catalogo que viajan dentro de la migracion (via <c>HasData</c>), no
