@@ -1,27 +1,69 @@
 using System.Text.Json.Serialization;
+using FluentValidation;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ZocoTasks.API.Middleware;
-using ZocoTasks.Business;
-using ZocoTasks.Infrastructure;
+using ZocoTasks.Business.Interfaces;
+using ZocoTasks.Business.Services;
+using ZocoTasks.Infrastructure.Data;
+using ZocoTasks.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// -----------------------------------------------------------------
-// Servicios
-// -----------------------------------------------------------------
+// ---------------------------------------------------------------
+// Conexion a la base (PostgreSQL en Neon)
+// ---------------------------------------------------------------
+var connectionString = builder.Configuration.GetConnectionString("ZocoDb");
 
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    // Falla al arrancar y no en el primer request: un error de configuracion
+    // tiene que ser evidente de inmediato.
+    throw new InvalidOperationException(
+        "Falta la cadena de conexion 'ZocoDb'. Definirla en user-secrets " +
+        "o en la variable de entorno ConnectionStrings__ZocoDb. Ver .env.example.");
+}
+
+builder.Services.AddDbContext<ZocoDbContext>(options =>
+    options.UseNpgsql(connectionString, npgsql =>
+        {
+            // Neon suspende el compute sin trafico; el reintento evita que ese
+            // arranque en frio se vea como un error.
+            npgsql.EnableRetryOnFailure();
+            npgsql.MigrationsHistoryTable("__ef_migrations_history");
+        })
+        // snake_case en la base, PascalCase en C#.
+        .UseSnakeCaseNamingConvention());
+
+// ---------------------------------------------------------------
+// Repositorios y servicios (Scoped: una instancia por request)
+// ---------------------------------------------------------------
+builder.Services.AddScoped<IComercioRepository, ComercioRepository>();
+builder.Services.AddScoped<IInteraccionRepository, InteraccionRepository>();
+builder.Services.AddScoped<ICatalogoRepository, CatalogoRepository>();
+
+builder.Services.AddScoped<IComercioService, ComercioService>();
+builder.Services.AddScoped<IInteraccionService, InteraccionService>();
+builder.Services.AddScoped<ICatalogoService, CatalogoService>();
+
+builder.Services.AddScoped<GlobalExceptionHandler>();
+
+// Registra por reflexion todos los validadores de FluentValidation.
+builder.Services.AddValidatorsFromAssemblyContaining<ComercioService>();
+
+// ---------------------------------------------------------------
+// API
+// ---------------------------------------------------------------
 builder.Services.AddControllers()
     .AddJsonOptions(opciones =>
     {
-        // Los enums viajan como texto ("Documentacion") en lugar de como
-        // numero. Hace la API legible y evita que el front tenga que mantener
-        // su propia tabla de equivalencias.
+        // Los enums viajan como texto ("Documentacion"), no como numero.
         opciones.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
-// La validacion la hacen los servicios con FluentValidation, que devuelve el
-// detalle campo por campo. Se apaga la respuesta automatica de MVC para que no
-// compitan dos formatos de error distintos.
+// La validacion la hacen los servicios con FluentValidation. Se apaga la
+// respuesta automatica de MVC para que no compitan dos formatos de error.
 builder.Services.Configure<ApiBehaviorOptions>(opciones =>
 {
     opciones.SuppressModelStateInvalidFilter = true;
@@ -29,44 +71,41 @@ builder.Services.Configure<ApiBehaviorOptions>(opciones =>
 
 builder.Services.AddOpenApi();
 
-builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddBusiness();
-
-builder.Services.AddScoped<GlobalExceptionHandler>();
-
-// CORS: el frontend vive en otro repositorio y por lo tanto en otro origen.
-// Los origenes permitidos se configuran por variable de entorno; en desarrollo
-// se admite cualquiera para no frenar el trabajo.
-var origenesPermitidos = builder.Configuration
-    .GetSection("Cors:Origenes").Get<string[]>() ?? [];
-
 builder.Services.AddCors(opciones =>
 {
     opciones.AddDefaultPolicy(politica =>
-    {
-        if (origenesPermitidos.Length > 0)
-        {
-            politica.WithOrigins(origenesPermitidos).AllowAnyHeader().AllowAnyMethod()
-                // Sin esto el navegador no deja que el front lea el ETag, y sin
-                // el ETag no puede mandar If-Match.
-                .WithExposedHeaders("ETag");
-        }
-        else
-        {
-            politica.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()
-                .WithExposedHeaders("ETag");
-        }
-    });
+        politica.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()
+            // Sin esto el navegador no deja leer el ETag, y sin el ETag el
+            // front no puede mandar If-Match.
+            .WithExposedHeaders("ETag"));
 });
+
+// Detras del proxy de Render, para que la app sepa que el trafico original
+// venia por HTTPS.
+builder.Services.Configure<ForwardedHeadersOptions>(opciones =>
+{
+    opciones.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    opciones.KnownIPNetworks.Clear();
+    opciones.KnownProxies.Clear();
+});
+
+// Render asigna el puerto por variable de entorno. Sin esto la app escucha en
+// el puerto equivocado y el deploy queda como "unhealthy".
+var puerto = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(puerto))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{puerto}");
+}
 
 var app = builder.Build();
 
-// -----------------------------------------------------------------
+// ---------------------------------------------------------------
 // Pipeline
-// -----------------------------------------------------------------
+// ---------------------------------------------------------------
+app.UseForwardedHeaders();
 
-// Primero de todo: cualquier excepcion que ocurra mas adelante tiene que pasar
-// por aca para salir como ProblemDetails.
+// Primero de todo: cualquier excepcion posterior tiene que salir por aca
+// como ProblemDetails.
 app.UseMiddleware<GlobalExceptionHandler>();
 
 if (app.Environment.IsDevelopment())
@@ -75,15 +114,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
 
 /// <summary>
-/// Necesario para que <c>WebApplicationFactory</c> pueda tomar este ensamblado
-/// como punto de entrada en los tests de integracion.
+/// Necesario para que WebApplicationFactory pueda tomar este ensamblado como
+/// punto de entrada en los tests de integracion.
 /// </summary>
 public partial class Program { }
