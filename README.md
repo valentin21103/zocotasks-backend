@@ -109,11 +109,8 @@ La entidad `Comercio` nunca la conoce.
 ```mermaid
 erDiagram
     COMERCIO ||--o{ INTERACCION : "registra"
-    COMERCIO ||--o{ HISTORIAL_ESTADO : "deja traza en"
-    COMERCIO ||--o{ ANALISIS_OPORTUNIDAD : "genera"
     RUBRO ||--o{ COMERCIO : "clasifica"
     ESTADO_COMERCIO ||--o{ COMERCIO : "estado actual de"
-    ESTADO_COMERCIO ||--o{ HISTORIAL_ESTADO : "origen y destino de"
     TIPO_INTERACCION ||--o{ INTERACCION : "tipifica"
     USUARIO ||--o{ COMERCIO : "tiene asignado"
     USUARIO ||--o{ INTERACCION : "registra"
@@ -144,28 +141,6 @@ erDiagram
         int usuario_id FK
         timestamptz fecha
         text detalle
-    }
-
-    HISTORIAL_ESTADO {
-        int id PK
-        int comercio_id FK
-        smallint estado_anterior_id FK "nulo solo en el alta"
-        smallint estado_nuevo_id FK
-        int usuario_id FK
-        timestamptz fecha
-        varchar motivo
-    }
-
-    ANALISIS_OPORTUNIDAD {
-        int id PK
-        int comercio_id FK
-        smallint nivel_interes
-        text resumen
-        text proximo_paso
-        jsonb preguntas_sugeridas
-        jsonb datos_faltantes
-        char hash_contexto "SHA256, clave de cache"
-        bool es_degradado
     }
 
     ESTADO_COMERCIO {
@@ -204,34 +179,50 @@ erDiagram
     }
 ```
 
-### Las cuatro decisiones que definen este modelo
+### Las decisiones que definen este modelo
 
-**1. Estado como enum en C# *y* tabla lookup en la base.**
-El enum da tipo fuerte y permite que la máquina de estados viva en el dominio;
-la tabla da integridad referencial y dos columnas que el enum no puede tener:
-`orden` (posición en el embudo) y `es_final`. No hay duplicación real: el seed
-de la tabla se genera recorriendo el enum, así que agregar un estado es tocar
-un solo lugar.
+**1. Estado como enum en C# *y* tabla lookup; rubro y tipo de interacción solo
+como tabla.** La regla que ordena el modelo:
 
-**2. `historial_estado` no es solo auditoría — es el insumo del feature de IA.**
-Un comercio veinte días trabado en "Documentación" es información crítica para
-recomendar el próximo paso, y es un dato que *no existe en ningún otro lado*.
-Sin esta tabla, el análisis solo ve texto plano; con ella, ve una trayectoria.
-Además, la única forma de cambiar de estado es `Comercio.CambiarEstado()`, que
-valida la transición y escribe el historial en la misma operación: no hay camino
-de código que pueda mover un comercio sin dejar rastro.
+> Si el valor **tiene lógica asociada**, va como enum en el código.
+> Si es **una etiqueta que el usuario administra**, va como tabla.
 
-**3. El análisis se persiste con un hash del contexto.**
-`hash_contexto` es el SHA256 de lo que se le envió al modelo. Si nadie tocó el
-comercio desde el último análisis, el hash coincide y se devuelve el guardado
-sin volver a pagar tokens. Sirve además para ver cómo evolucionó el interés en
-el tiempo.
+| | Lógica asociada | Lista | Modelado |
+|---|---|---|---|
+| Estado | Sí — máquina de estados | Cerrada: la consigna dice «estados posibles» | enum + tabla lookup |
+| Tipo de interacción | No | Abierta: la consigna dice «por ejemplo» | tabla |
+| Rubro | No | Abierta, la administra el usuario | tabla |
 
-**4. Soft delete.**
-Borrar un comercio en duro se llevaría por cascada sus interacciones y su
-historial — justamente la evidencia del trabajo comercial. `fecha_eliminacion`
-nullable con filtro global de EF: los eliminados desaparecen de toda consulta
-salvo que se pidan explícitamente.
+El estado lleva además tabla porque necesita `orden` (posición en el embudo) y
+`es_final`, dos columnas que un enum no puede tener. No hay duplicación: el seed
+de la tabla se genera recorriendo el enum, así que agregar un estado es tocar un
+solo lugar.
+
+**2. La máquina de estados vive en el dominio.**
+`Comercio.CambiarEstado()` es el único camino para transicionar, y valida contra
+`MaquinaEstadoComercio` antes de mutar. Ningún camino de código puede persistir
+un estado inválido, ni siquiera por descuido.
+
+**3. Soft delete.**
+Borrar un comercio en duro se llevaría por cascada sus interacciones — la
+evidencia del trabajo comercial. `fecha_eliminacion` nullable con filtro global
+de EF: los eliminados desaparecen de toda consulta salvo que se pidan
+explícitamente.
+
+### Lo que se decidió **no** modelar
+
+Dos tablas se diseñaron, se implementaron y después se quitaron a conciencia.
+Queda documentado porque la decisión de sacarlas es parte del diseño:
+
+| Tabla quitada | Qué hacía | Por qué se quitó |
+|---|---|---|
+| `historial_estado` | Una fila por transición del pipeline | La consigna alimenta el análisis con «notas/interacciones», no con historial. El bonus de auditoría, si se implementa, registra los cambios de forma genérica desde un interceptor — no hace falta una tabla dedicada solo al estado |
+| `analisis_oportunidad` | Persistía el resultado de la IA con un hash para cachearlo | La consigna pide **generar** el análisis, no guardarlo. Regenerarlo en cada consulta refleja el estado actual del comercio. Guardarlo abría la puerta a un módulo de «análisis anteriores» que nadie pidió |
+
+El costo asumido está explícito: sin caché, cada análisis es una llamada al
+modelo, y como los modelos de lenguaje no son determinísticos, el texto cambia
+entre corridas. Se aceptó a cambio de un modelo más chico y de no gastar el
+tiempo de la prueba en una funcionalidad fuera de alcance.
 
 > El razonamiento completo de cada decisión, con las alternativas descartadas y
 > las condiciones bajo las cuales elegiría distinto, está en
@@ -394,7 +385,8 @@ real (Neon, `sa-east-1`):
 
 | Qué se verificó | Resultado |
 |---|---|
-| Tablas creadas | 11 + historial de migraciones |
+| Tablas creadas | 9 + historial de migraciones |
+| Migraciones aplicadas | 2 (esquema inicial + simplificación del modelo) |
 | Catálogos sembrados | 6 estados, 5 tipos, 9 rubros, 2 roles |
 | `xmin` cambia en cada UPDATE | `2056` → `2057` ✅ |
 | `xmin` **no** se intenta crear en el DDL | Confirmado (es columna de sistema; crearla fallaría) |

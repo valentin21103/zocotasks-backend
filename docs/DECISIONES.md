@@ -138,63 +138,64 @@ combos nuevos sin romper el pasado.
 
 ---
 
-### 2.3 `historial_estado` como tabla propia
+### 2.3 No existe `historial_estado`
 
-**Decisión.** Cada transición del pipeline genera una fila con estado anterior,
-estado nuevo, usuario, fecha y motivo.
+**Contexto.** El diseño inicial incluía una tabla con una fila por cada
+transición del pipeline: estado anterior, estado nuevo, usuario, fecha y motivo.
+Se implementó, se migró contra la base real, y después se quitó.
 
-**Por qué.** Tres razones, y la tercera es la que la justifica sola:
-1. Cubre parte del bonus de auditoría.
-2. Da trazabilidad del embudo ("¿cuánto tarda un comercio en pasar de
-   Contactado a Interesado?").
-3. **Le da señal temporal al feature de IA.** Un comercio 20 días trabado en
-   "Documentación" es información crítica para el análisis de oportunidad, y es
-   un dato que *no existe en ningún otro lado*: mirando solo el estado actual y
-   las notas, el modelo no puede saberlo. Sin esta tabla, "Analizar oportunidad"
-   ve texto plano; con ella, ve una historia.
+**El argumento que tenía a favor.** Le daba *señal temporal* al feature de IA: un
+comercio veinte días trabado en "Documentación" es información útil para
+recomendar el próximo paso, y no existe en ningún otro campo.
 
-**Garantía de integridad.** El historial no se escribe a mano desde los
-servicios: la única forma de cambiar de estado es `Comercio.CambiarEstado()`,
-que valida la transición y agrega la fila del historial en la misma operación.
-No hay camino de código que pueda cambiar el estado sin dejar rastro.
+**Por qué se quitó igual.** Dos razones:
 
----
+1. La consigna define la entrada del análisis como *"la información del comercio
+   y de sus **notas/interacciones**"*. El historial no está en esa lista, y el
+   ejemplo que la propia consigna da se resuelve enteramente con texto.
+2. El bonus de auditoría, si se implementa, registra **todo** cambio de forma
+   genérica desde un interceptor de `SaveChanges`. Una tabla dedicada a auditar
+   únicamente el estado sería un caso particular de algo ya cubierto.
 
-### 2.4 `analisis_oportunidad` se persiste, no se devuelve al vuelo
+**Costo asumido.** El análisis pierde la noción de "hace cuánto que está acá".
 
-**Contexto.** "Analizar oportunidad" llama a un modelo de lenguaje. Se podría
-devolver la respuesta directamente sin guardarla.
+**Cuándo la traería de vuelta.** Si apareciera un requerimiento de reporting
+sobre el embudo —tiempo promedio por etapa, tasa de conversión entre estados—
+la tabla se vuelve necesaria y el interceptor genérico no alcanza, porque
+guarda los cambios como texto y no en un formato consultable.
 
-**Decisión.** Se persiste, con un `hash_contexto` (SHA256 del contexto enviado).
-
-**Por qué.**
-- **Costo.** Si nadie tocó el comercio desde el último análisis, el hash
-  coincide y se devuelve el guardado sin volver a pagar tokens.
-- **Trazabilidad.** Se puede ver cómo evolucionó el interés estimado a lo largo
-  del tiempo.
-- **Latencia.** Un cache hit responde en milisegundos en vez de segundos.
-
-**Detalle de diseño.** `es_degradado` marca las respuestas producidas cuando el
-proveedor falla. Nunca se cachean ni se presentan como análisis válido: si el
-modelo no respondió, el sistema lo dice, no inventa un nivel de interés.
+**Lo que sí se conservó.** La garantía de integridad no dependía de la tabla:
+`Comercio.CambiarEstado()` sigue siendo el único camino para transicionar y
+sigue validando contra la máquina de estados antes de mutar.
 
 ---
 
-### 2.5 `jsonb` para `preguntas_sugeridas` y `datos_faltantes`
+### 2.4 El análisis **no** se persiste
 
-**Opciones.** Tabla normalizada 1:N; array de Postgres; `jsonb`; texto separado
-por comas.
+**Contexto.** "Analizar oportunidad" llama a un modelo de lenguaje. Se podía
+guardar el resultado con un hash del contexto para cachearlo, o devolverlo al
+vuelo. La primera versión persistía, con tabla propia y campos `jsonb` para las
+preguntas sugeridas y los datos faltantes.
 
-**Decisión.** `jsonb`.
+**Decisión.** No se persiste. El endpoint arma el contexto, llama al proveedor y
+devuelve el resultado.
 
-**Por qué.** Normalizar tiene sentido cuando vas a **consultar** por esos datos
-("dame todos los análisis que sugieren preguntar por volumen mensual"). Acá son
-arrays de solo lectura que se muestran completos junto al análisis y nunca se
-filtran ni se joinean. Una tabla `pregunta_sugerida` con su PK, su FK y su
-índice sería infraestructura sin uso.
+**Por qué.** La consigna dice que el sistema debe **generar** el análisis, no
+guardarlo. Regenerarlo en cada consulta tiene además una propiedad deseable:
+siempre refleja el estado actual del comercio, sin riesgo de presentar un
+análisis viejo como si fuera vigente. Y persistirlo abría la puerta a un módulo
+de "análisis anteriores" que nadie pidió: alcance que no estaba en la consigna,
+en una prueba con límite de tiempo.
 
-**Cuándo elegiría distinto.** En cuanto aparezca el primer requerimiento de
-buscar o agregar por el contenido de esos arrays, se normaliza.
+**Costos asumidos, explícitos.**
+- Cada consulta es una llamada al modelo: se paga y demora segundos.
+- Los modelos de lenguaje **no son determinísticos**. El mismo contexto produce
+  textos distintos entre corridas, así que el usuario puede ver el análisis
+  redactado de otra forma sin que haya cambiado nada del comercio.
+
+**Cuándo elegiría distinto.** Con volumen de uso real, el costo por token y la
+latencia justifican el caché. La implementación sería directa: SHA256 del
+contexto como clave, y devolver lo guardado si el hash coincide.
 
 ---
 
@@ -573,14 +574,25 @@ limpio después.
 > Autocrítica del estado actual. Una decisión que nadie revisa deja de ser una
 > decisión y pasa a ser una costumbre.
 
+### 8.0 Precedente: dos tablas ya se eliminaron
+
+`historial_estado` y `analisis_oportunidad` se diseñaron, implementaron y
+migraron, y después se quitaron al revisar si cada una respondía a un
+requerimiento real (ver [2.3](#23-no-existe-historial_estado) y
+[2.4](#24-el-análisis-no-se-persiste)). El modelo pasó de 11 tablas a 9.
+
+Vale dejarlo asentado porque fija el criterio: **una tabla se queda si responde
+a algo que la consigna pide o a un bonus que se va a implementar. No alcanza con
+que sea "buena idea".**
+
 ### 8.1 Deuda abierta: cuatro tablas sin código que las use
 
 `usuario`, `rol`, `usuario_rol` y `audit_log` existen en la base y **ningún
 código las escribe todavía**. Se justifican solo si se implementan los bonus de
 autenticación y auditoría.
 
-**Criterio de decisión:** si al cierre del proyecto esos bonus no están
-implementados, **estas tablas se eliminan del modelo antes de entregar**. Una
+**Criterio de decisión:** el mismo de 8.0. Si al cierre del proyecto esos bonus
+no están implementados, **estas tablas se eliminan antes de entregar**. Una
 tabla vacía sin código asociado se lee como planificación fallida, no como
 previsión.
 
@@ -622,5 +634,6 @@ eliminarla.
 - Estrategia de paginación (offset vs keyset)
 - Alcance del interceptor de auditoría (qué entidades, qué granularidad)
 - Base y aislamiento de los tests de integración
+- Si se implementa ABM de rubros o alcanza con el catálogo sembrado
 - Si se permiten retrocesos en el pipeline (hoy no se permiten, ver
   [Guía de estudio §5.2](GUIA-DE-ESTUDIO.md#52-el-pipeline-no-permite-retroceder))

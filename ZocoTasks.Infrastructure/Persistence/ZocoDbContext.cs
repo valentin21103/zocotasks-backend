@@ -14,8 +14,6 @@ public class ZocoDbContext : DbContext
 
     public DbSet<Comercio> Comercios => Set<Comercio>();
     public DbSet<Interaccion> Interacciones => Set<Interaccion>();
-    public DbSet<HistorialEstado> HistorialEstados => Set<HistorialEstado>();
-    public DbSet<AnalisisOportunidad> Analisis => Set<AnalisisOportunidad>();
 
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<Rol> Roles => Set<Rol>();

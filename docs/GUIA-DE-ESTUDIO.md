@@ -106,55 +106,59 @@ El flag `activo` en lugar de borrar: si eliminás un rubro, los comercios
 históricos que lo referencian quedan huérfanos. Desactivarlo lo saca de los
 combos nuevos sin romper el pasado.
 
-### ¿Para qué `historial_estado`? El estado actual ya está en `comercio`
+### ¿No guardás un historial de cambios de estado?
 
-Tres razones, y la tercera la justifica sola:
+**Es una pregunta trampa: la respuesta correcta es que lo tuve y lo saqué.**
 
-1. Cubre parte del bonus de auditoría.
-2. Permite medir el embudo: cuánto tarda un comercio en pasar de Contactado a
-   Interesado.
-3. **Le da señal temporal al feature de IA.** Un comercio veinte días trabado en
-   "Documentación" es información crítica para recomendar el próximo paso, y es
-   un dato que *no existe en ningún otro lado*. Mirando solo el estado actual y
-   las notas, el modelo no puede saberlo. Sin esta tabla el análisis ve texto
-   plano; con ella ve una trayectoria.
+Lo diseñé, lo implementé y lo migré. Le daba señal temporal al análisis de IA —
+"hace veinte días que está trabado en Documentación"— que es un dato que no
+existe en ningún otro campo.
 
-**El detalle que suma:** el historial no se escribe a mano desde los servicios.
-La única forma de cambiar de estado es `Comercio.CambiarEstado()`, que valida la
-transición contra la máquina de estados y escribe el historial en la misma
-operación. No hay camino de código que pueda mover un comercio sin dejar rastro.
+Lo quité por dos razones:
 
-### ¿Por qué guardás el análisis de IA en vez de devolverlo y listo?
+1. La consigna define la entrada del análisis como *"la información del comercio
+   y de sus notas/interacciones"*. El historial no está en esa lista.
+2. El bonus de auditoría, si se implementa, registra todo cambio de forma
+   genérica desde un interceptor de `SaveChanges`. Una tabla dedicada a auditar
+   solo el estado sería un caso particular de algo ya cubierto.
 
-Tres razones:
+**El costo lo asumo y lo digo:** el análisis pierde la noción de cuánto tiempo
+lleva el comercio en su estado actual.
 
-- **Costo.** `hash_contexto` es el SHA256 de lo que se le mandó al modelo. Si
-  nadie tocó el comercio desde el último análisis, el hash coincide y se
-  devuelve el guardado sin volver a pagar tokens.
-- **Latencia.** Un cache hit responde en milisegundos en vez de segundos.
-- **Trazabilidad.** Se puede ver cómo evolucionó el interés estimado en el
-  tiempo, que es información comercial en sí misma.
+**Lo traería de vuelta** si hubiera que reportar sobre el embudo: tiempo
+promedio por etapa, tasa de conversión entre estados. Ahí el interceptor
+genérico no alcanza, porque guarda los cambios como texto y no en un formato
+consultable.
 
-Y un detalle de diseño: `es_degradado` marca las respuestas producidas cuando el
-proveedor falla. **Nunca se cachean ni se presentan como análisis válido.** Si
-el modelo no respondió, el sistema lo dice; no inventa un nivel de interés.
+*Lo que no se perdió:* la garantía de integridad nunca dependió de la tabla.
+`Comercio.CambiarEstado()` sigue siendo el único camino para transicionar y
+sigue validando contra la máquina de estados antes de mutar.
 
-### ¿Por qué `jsonb` y no una tabla para las preguntas sugeridas?
+### ¿Por qué no guardás el resultado del análisis de IA?
 
-Normalizar tiene sentido cuando vas a **consultar** por esos datos: "dame todos
-los análisis que sugieren preguntar por volumen mensual". Acá son arrays de solo
-lectura que se muestran completos junto al análisis y nunca se filtran ni se
-joinean. Una tabla `pregunta_sugerida` con su PK, su FK y su índice sería
-infraestructura sin uso.
+Porque la consigna dice que el sistema debe **generar** el análisis, no
+guardarlo. Regenerarlo en cada consulta tiene además una propiedad deseable:
+siempre refleja el estado actual del comercio, sin riesgo de mostrar un análisis
+viejo como si fuera vigente.
 
-*Condición de reversión:* en cuanto aparezca el primer requerimiento de buscar
-o agregar por el contenido de esos arrays, se normaliza.
+Persistirlo, además, abría la puerta a un módulo de "análisis anteriores" que
+nadie pidió. En una prueba con límite de tiempo, eso es alcance que se come
+horas de lo que sí está pedido.
+
+**Los costos, que también hay que decirlos:**
+- Cada consulta es una llamada al modelo: se paga y demora segundos.
+- Los modelos de lenguaje no son determinísticos, así que el texto puede cambiar
+  entre corridas aunque no haya cambiado nada del comercio.
+
+**Cuándo elegiría distinto:** con volumen real de uso. La implementación sería
+directa —SHA256 del contexto como clave de caché, devolver lo guardado si
+coincide— pero no se justifica para el alcance de esta prueba.
 
 ### ¿Por qué soft delete?
 
-Un borrado físico se llevaría por cascada las interacciones y el historial —
-justamente la evidencia del trabajo comercial. Borrar un comercio no debería
-borrar el registro de que se lo llamó tres veces.
+Un borrado físico se llevaría por cascada las interacciones — justamente la
+evidencia del trabajo comercial. Borrar un comercio no debería borrar el
+registro de que se lo llamó tres veces.
 
 Se implementa con `fecha_eliminacion` nullable más `HasQueryFilter` global: los
 eliminados desaparecen de **toda** consulta automáticamente, y recuperarlos
@@ -420,23 +424,27 @@ Solo tiene `Id`. Es una abstracción muy delgada.
 necesita identificar entidades con clave entera de forma genérica. Si la
 auditoría no se implementa, esta clase queda difícil de justificar.
 
-### 5.6 Once tablas para un enunciado que pedía dos
+### 5.6 Nueve tablas para un enunciado que pedía dos
 
-La consigna pide `Comercio` e `Interacciones`. Hay once tablas.
+La consigna pide `Comercio` e `Interacciones`. Hay nueve tablas.
 
 **El desglose defendible:**
 
 | Tabla | Justificación |
 |---|---|
 | `comercio`, `interaccion` | Pedidas explícitamente |
-| `estado_comercio`, `tipo_interaccion` | Lookups para integridad referencial |
-| `rubro` | Pedido como campo; es tabla porque cambia sin deploy |
-| `historial_estado` | Insumo del feature de IA + auditoría del embudo |
-| `analisis_oportunidad` | Persistencia del feature pedido, con cache |
+| `rubro`, `tipo_interaccion` | Listas abiertas que el usuario administra |
+| `estado_comercio` | Lista cerrada, pero necesita `orden` y `es_final` |
 | `usuario`, `rol`, `usuario_rol`, `audit_log` | **Bonus — ver 5.1** |
 
-Siete de once se defienden solas. Las otras cuatro dependen de que se
+Cinco de nueve se defienden solas. Las otras cuatro dependen de que se
 implementen los bonus.
+
+**Y hubo once.** `historial_estado` y `analisis_oportunidad` se implementaron y
+después se quitaron al revisar si cada tabla respondía a un requerimiento real.
+Si te preguntan por el tamaño del modelo, esa es la mejor respuesta que tenés:
+*"nueve, y llegué a nueve sacando dos que había hecho de más"*. Muestra que
+revisaste el diseño en vez de acumular.
 
 ---
 
@@ -463,12 +471,19 @@ recorriendo el enum: hay una sola fuente de verdad. El contraste está en
 `rubro`, que es tabla pura sin enum, porque los rubros cambian sin que cambie el
 código y los estados no."*
 
-### 3. Qué hace `historial_estado` que no hace `comercio.estado`
+### 3. Por qué el modelo tiene nueve tablas y no dos
 
-*"El estado actual te dice dónde está el comercio; el historial te dice hace
-cuánto y por dónde pasó. Eso es lo que le da señal temporal al análisis de IA:
-un comercio veinte días trabado en Documentación es información crítica para
-recomendar el próximo paso, y no existe en ningún otro lado. Además, la única
-forma de cambiar de estado es `Comercio.CambiarEstado()`, que valida la
-transición y escribe el historial en la misma operación, así que no hay forma de
-mover un comercio sin dejar rastro."*
+*"La consigna pide dos entidades; el modelo tiene nueve, y cada una responde a
+algo concreto. La regla que usé es simple: si el valor tiene lógica asociada va
+como enum en el código, y si es una etiqueta que el usuario administra va como
+tabla. El estado tiene una máquina de estados detrás y su lista es cerrada, así
+que es enum —con tabla lookup encima, porque necesita `orden` y `es_final`—.
+El rubro y el tipo de interacción son etiquetas sin lógica y la consigna los
+plantea como listas abiertas, así que son tabla."*
+
+*"Y llegué a nueve sacando dos. Había hecho `historial_estado` y
+`analisis_oportunidad`, las implementé, y al revisar si respondían a un
+requerimiento real decidí quitarlas: la primera porque la consigna alimenta el
+análisis con notas e interacciones, no con historial; la segunda porque pide
+generar el análisis, no guardarlo. Preferí el modelo más chico y usar ese
+tiempo en lo que sí estaba pedido."*

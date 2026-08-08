@@ -59,58 +59,23 @@ public class Comercio : EntidadBase, IAuditable, ISoftDelete
     public uint Version { get; set; }
 
     public ICollection<Interaccion> Interacciones { get; set; } = new List<Interaccion>();
-    public ICollection<HistorialEstado> Historial { get; set; } = new List<HistorialEstado>();
-    public ICollection<AnalisisOportunidad> Analisis { get; set; } = new List<AnalisisOportunidad>();
 
     /// <summary>
-    /// Deja asentado el estado inicial en el historial. Se llama una sola vez,
-    /// al dar de alta el comercio: es el unico registro con estado anterior nulo.
+    /// Mueve el comercio en el pipeline. Unico camino para cambiar de estado:
+    /// valida contra <see cref="MaquinaEstadoComercio"/> antes de mutar, de modo
+    /// que un estado invalido no puede llegar a persistirse por ninguna via.
     /// </summary>
-    public HistorialEstado RegistrarEstadoInicial(int? usuarioId, DateTime? fecha = null)
-    {
-        var registro = new HistorialEstado
-        {
-            Comercio = this,
-            EstadoAnterior = null,
-            EstadoNuevo = Estado,
-            UsuarioId = usuarioId,
-            Motivo = "Alta del comercio",
-            Fecha = fecha ?? DateTime.UtcNow
-        };
-
-        Historial.Add(registro);
-        return registro;
-    }
-
-    /// <summary>
-    /// Mueve el comercio en el pipeline dejando la traza en el historial.
-    /// Unico camino para cambiar de estado: valida contra
-    /// <see cref="MaquinaEstadoComercio"/> antes de mutar, de modo que un estado
-    /// invalido no puede llegar a persistirse por ninguna via.
-    /// </summary>
+    /// <remarks>
+    /// La traza de quien lo cambio y cuando la aporta el interceptor de
+    /// auditoria, que registra todo UPDATE de forma generica. No hace falta que
+    /// el dominio la escriba a mano.
+    /// </remarks>
     /// <exception cref="Exceptions.EstadoTransicionInvalidaException">
     /// Si el pipeline no permite la transicion desde el estado actual.
     /// </exception>
-    public HistorialEstado CambiarEstado(
-        EstadoComercioEnum nuevoEstado,
-        int? usuarioId,
-        string? motivo = null,
-        DateTime? fecha = null)
+    public void CambiarEstado(EstadoComercioEnum nuevoEstado)
     {
         MaquinaEstadoComercio.ValidarTransicion(Estado, nuevoEstado);
-
-        var registro = new HistorialEstado
-        {
-            Comercio = this,
-            EstadoAnterior = Estado,
-            EstadoNuevo = nuevoEstado,
-            UsuarioId = usuarioId,
-            Motivo = motivo,
-            Fecha = fecha ?? DateTime.UtcNow
-        };
-
         Estado = nuevoEstado;
-        Historial.Add(registro);
-        return registro;
     }
 }
