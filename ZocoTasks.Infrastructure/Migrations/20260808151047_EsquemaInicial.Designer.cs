@@ -13,7 +13,7 @@ using ZocoTasks.Infrastructure.Persistence;
 namespace ZocoTasks.Infrastructure.Migrations
 {
     [DbContext(typeof(ZocoDbContext))]
-    [Migration("20260808002629_EsquemaInicial")]
+    [Migration("20260808151047_EsquemaInicial")]
     partial class EsquemaInicial
     {
         /// <inheritdoc />
@@ -26,85 +26,6 @@ namespace ZocoTasks.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("ZocoTasks.Domain.Entities.AnalisisOportunidad", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ComercioId")
-                        .HasColumnType("integer")
-                        .HasColumnName("comercio_id");
-
-                    b.PrimitiveCollection<string>("DatosFaltantes")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("datos_faltantes");
-
-                    b.Property<bool>("EsDegradado")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("es_degradado");
-
-                    b.Property<DateTime>("FechaGeneracion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("fecha_generacion")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<string>("HashContexto")
-                        .IsRequired()
-                        .HasColumnType("char(64)")
-                        .HasColumnName("hash_contexto");
-
-                    b.Property<string>("ModeloUtilizado")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("modelo_utilizado");
-
-                    b.Property<short>("NivelInteres")
-                        .HasColumnType("smallint")
-                        .HasColumnName("nivel_interes");
-
-                    b.PrimitiveCollection<string>("PreguntasSugeridas")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("preguntas_sugeridas");
-
-                    b.Property<string>("ProximoPaso")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("proximo_paso");
-
-                    b.Property<string>("Resumen")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("resumen");
-
-                    b.Property<int?>("UsuarioId")
-                        .HasColumnType("integer")
-                        .HasColumnName("usuario_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_analisis_oportunidad");
-
-                    b.HasIndex("UsuarioId")
-                        .HasDatabaseName("ix_analisis_oportunidad_usuario_id");
-
-                    b.HasIndex("ComercioId", "FechaGeneracion")
-                        .HasDatabaseName("ix_analisis_comercio_fecha");
-
-                    b.HasIndex("ComercioId", "HashContexto")
-                        .HasDatabaseName("ix_analisis_comercio_hash");
-
-                    b.ToTable("analisis_oportunidad", (string)null);
-                });
 
             modelBuilder.Entity("ZocoTasks.Domain.Entities.AuditLog", b =>
                 {
@@ -350,58 +271,6 @@ namespace ZocoTasks.Infrastructure.Migrations
                             Nombre = "Rechazado",
                             Orden = (short)6
                         });
-                });
-
-            modelBuilder.Entity("ZocoTasks.Domain.Entities.HistorialEstado", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ComercioId")
-                        .HasColumnType("integer")
-                        .HasColumnName("comercio_id");
-
-                    b.Property<short?>("EstadoAnterior")
-                        .HasColumnType("smallint")
-                        .HasColumnName("estado_anterior_id");
-
-                    b.Property<short>("EstadoNuevo")
-                        .HasColumnType("smallint")
-                        .HasColumnName("estado_nuevo_id");
-
-                    b.Property<DateTime>("Fecha")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("fecha");
-
-                    b.Property<string>("Motivo")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("motivo");
-
-                    b.Property<int?>("UsuarioId")
-                        .HasColumnType("integer")
-                        .HasColumnName("usuario_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_historial_estado");
-
-                    b.HasIndex("EstadoAnterior")
-                        .HasDatabaseName("ix_historial_estado_estado_anterior_id");
-
-                    b.HasIndex("EstadoNuevo")
-                        .HasDatabaseName("ix_historial_estado_estado_nuevo_id");
-
-                    b.HasIndex("UsuarioId")
-                        .HasDatabaseName("ix_historial_estado_usuario_id");
-
-                    b.HasIndex("ComercioId", "Fecha")
-                        .HasDatabaseName("ix_historial_comercio_fecha");
-
-                    b.ToTable("historial_estado", (string)null);
                 });
 
             modelBuilder.Entity("ZocoTasks.Domain.Entities.Interaccion", b =>
@@ -707,26 +576,6 @@ namespace ZocoTasks.Infrastructure.Migrations
                     b.ToTable("usuario_rol", (string)null);
                 });
 
-            modelBuilder.Entity("ZocoTasks.Domain.Entities.AnalisisOportunidad", b =>
-                {
-                    b.HasOne("ZocoTasks.Domain.Entities.Comercio", "Comercio")
-                        .WithMany("Analisis")
-                        .HasForeignKey("ComercioId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_analisis_comercio");
-
-                    b.HasOne("ZocoTasks.Domain.Entities.Usuario", "Usuario")
-                        .WithMany()
-                        .HasForeignKey("UsuarioId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_analisis_usuario");
-
-                    b.Navigation("Comercio");
-
-                    b.Navigation("Usuario");
-                });
-
             modelBuilder.Entity("ZocoTasks.Domain.Entities.AuditLog", b =>
                 {
                     b.HasOne("ZocoTasks.Domain.Entities.Usuario", "Usuario")
@@ -765,39 +614,6 @@ namespace ZocoTasks.Infrastructure.Migrations
                     b.Navigation("Rubro");
 
                     b.Navigation("UsuarioAsignado");
-                });
-
-            modelBuilder.Entity("ZocoTasks.Domain.Entities.HistorialEstado", b =>
-                {
-                    b.HasOne("ZocoTasks.Domain.Entities.Comercio", "Comercio")
-                        .WithMany("Historial")
-                        .HasForeignKey("ComercioId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_historial_comercio");
-
-                    b.HasOne("ZocoTasks.Domain.Entities.EstadoComercio", null)
-                        .WithMany()
-                        .HasForeignKey("EstadoAnterior")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_historial_estado_anterior");
-
-                    b.HasOne("ZocoTasks.Domain.Entities.EstadoComercio", null)
-                        .WithMany()
-                        .HasForeignKey("EstadoNuevo")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_historial_estado_nuevo");
-
-                    b.HasOne("ZocoTasks.Domain.Entities.Usuario", "Usuario")
-                        .WithMany()
-                        .HasForeignKey("UsuarioId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_historial_usuario");
-
-                    b.Navigation("Comercio");
-
-                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("ZocoTasks.Domain.Entities.Interaccion", b =>
@@ -852,10 +668,6 @@ namespace ZocoTasks.Infrastructure.Migrations
 
             modelBuilder.Entity("ZocoTasks.Domain.Entities.Comercio", b =>
                 {
-                    b.Navigation("Analisis");
-
-                    b.Navigation("Historial");
-
                     b.Navigation("Interacciones");
                 });
 
