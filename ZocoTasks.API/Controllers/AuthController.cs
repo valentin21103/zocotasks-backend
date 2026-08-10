@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ZocoTasks.Business.DTOs;
 using ZocoTasks.Business.Interfaces;
 
@@ -19,9 +20,11 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Devuelve el token JWT. Es el unico endpoint publico junto con el health.
     /// </summary>
+    [EnableRateLimiting("login")]
     [HttpPost("login")]
     [ProducesResponseType(typeof(LoginRespuestaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> Login([FromBody] LoginDto dto, CancellationToken ct)
     {
         var respuesta = await _service.Login(dto, ct);
