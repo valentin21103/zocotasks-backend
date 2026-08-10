@@ -4,8 +4,6 @@ namespace ZocoTasks.Domain.Entities;
 
 /// <summary>
 /// Catalogo de estados del pipeline. La PK es el propio enum: la base guarda el
-/// smallint y el codigo trabaja con el tipo fuerte, sin conversiones a mano.
-/// Sembrado por migracion; no tiene ABM.
 /// </summary>
 public class EstadoComercio
 {

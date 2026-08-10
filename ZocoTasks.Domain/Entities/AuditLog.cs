@@ -5,8 +5,8 @@ namespace ZocoTasks.Domain.Entities;
 /// generica para toda entidad rastreada: ningun servicio lo llena a mano.
 /// </summary>
 /// <remarks>
-/// No hereda de <c>EntidadBase</c> porque su PK es <see cref="long"/>: es la
-/// tabla que mas rapido crece del modelo.
+/// Su PK es <see cref="long"/> y no <see cref="int"/>: es la tabla que mas
+/// rapido crece del modelo.
 /// </remarks>
 public class AuditLog
 {

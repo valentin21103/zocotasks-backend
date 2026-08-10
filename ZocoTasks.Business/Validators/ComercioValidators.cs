@@ -1,6 +1,5 @@
 using FluentValidation;
 using ZocoTasks.Business.DTOs;
-using ZocoTasks.Domain.Common;
 
 namespace ZocoTasks.Business.Validators;
 
@@ -26,12 +25,10 @@ public class CrearComercioDtoValidator : AbstractValidator<CrearComercioDto>
             .NotEmpty().WithMessage("El nombre comercial es obligatorio.")
             .MaximumLength(150).WithMessage("El nombre comercial no puede superar los 150 caracteres.");
 
-        // La validacion del digito verificador vive en Domain: es una regla del
-        // negocio, no del formulario.
         RuleFor(x => x.Cuit)
             .NotEmpty().WithMessage("El CUIT es obligatorio.")
-            .Must(Cuit.EsValido)
-            .WithMessage("El CUIT no es valido: no pasa la verificacion por modulo 11.");
+            .Must(cuit => cuit.Count(char.IsDigit) == 11)
+            .WithMessage("El CUIT debe tener 11 digitos.");
 
         RuleFor(x => x.NombreContacto)
             .NotEmpty().WithMessage("El nombre del contacto es obligatorio.")
@@ -68,8 +65,8 @@ public class ActualizarComercioDtoValidator : AbstractValidator<ActualizarComerc
 
         RuleFor(x => x.Cuit)
             .NotEmpty().WithMessage("El CUIT es obligatorio.")
-            .Must(Cuit.EsValido)
-            .WithMessage("El CUIT no es valido: no pasa la verificacion por modulo 11.");
+            .Must(cuit => cuit.Count(char.IsDigit) == 11)
+            .WithMessage("El CUIT debe tener 11 digitos.");
 
         RuleFor(x => x.NombreContacto)
             .NotEmpty().WithMessage("El nombre del contacto es obligatorio.")
@@ -98,9 +95,8 @@ public class CambiarEstadoDtoValidator : AbstractValidator<CambiarEstadoDto>
 {
     public CambiarEstadoDtoValidator()
     {
-        // Solo valida que el valor exista en el enum. Si la transicion es
-        // posible desde el estado actual lo decide la maquina de estados del
-        // dominio, que es la unica que conoce el estado en que esta el comercio.
+        // Solo valida que el valor exista en el enum. Que no sea el mismo
+        // estado que el comercio ya tiene lo valida Comercio.CambiarEstado.
         RuleFor(x => x.NuevoEstado)
             .IsInEnum().WithMessage("El estado indicado no existe.");
     }

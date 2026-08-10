@@ -1,12 +1,11 @@
-using ZocoTasks.Domain.Common;
-
 namespace ZocoTasks.Domain.Entities;
 
 /// <summary>
 /// Usuario del backoffice comercial.
 /// </summary>
-public class Usuario : EntidadBase, IAuditable
+public class Usuario
 {
+    public int Id { get; set; }
 
     public string Email { get; set; } = null!;
 

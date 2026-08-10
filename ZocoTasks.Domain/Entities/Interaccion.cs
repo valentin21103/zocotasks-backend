@@ -1,4 +1,3 @@
-using ZocoTasks.Domain.Common;
 using ZocoTasks.Domain.Enums;
 
 namespace ZocoTasks.Domain.Entities;
@@ -7,8 +6,10 @@ namespace ZocoTasks.Domain.Entities;
 /// Contacto registrado contra un comercio: llamada, WhatsApp, reunion, email o
 /// nota interna. Segunda entidad del modelo, 1:N con <see cref="Comercio"/>.
 /// </summary>
-public class Interaccion : EntidadBase
+public class Interaccion
 {
+    public int Id { get; set; }
+
     public int ComercioId { get; set; }
     public Comercio Comercio { get; set; } = null!;
 

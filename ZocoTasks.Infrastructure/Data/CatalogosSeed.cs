@@ -1,4 +1,3 @@
-using ZocoTasks.Domain.Common;
 using ZocoTasks.Domain.Entities;
 using ZocoTasks.Domain.Enums;
 
@@ -30,11 +29,7 @@ public static class CatalogosSeed
         [TipoInteraccionEnum.NotaInterna] = "Nota interna"
     };
 
-    /// <summary>
-    /// Los estados se derivan del enum y de <see cref="MaquinaEstadoComercio"/>
-    /// en lugar de repetirse a mano: el orden y el flag de terminal tienen una
-    /// sola fuente de verdad, que es la maquina de estados del dominio.
-    /// </summary>
+    /// <summary>Los estados se derivan del enum en lugar de repetirse a mano.</summary>
     public static EstadoComercio[] Estados =>
         Enum.GetValues<EstadoComercioEnum>()
             .Select(e => new EstadoComercio
@@ -42,8 +37,8 @@ public static class CatalogosSeed
                 Id = e,
                 Codigo = e.ToString(),
                 Nombre = NombresEstado[e],
-                Orden = MaquinaEstadoComercio.Orden(e),
-                EsFinal = MaquinaEstadoComercio.EsFinal(e)
+                Orden = (short)e,
+                EsFinal = e is EstadoComercioEnum.Aprobado or EstadoComercioEnum.Rechazado
             })
             .ToArray();
 

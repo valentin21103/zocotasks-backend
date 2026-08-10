@@ -1,7 +1,6 @@
 using FluentValidation;
 using ZocoTasks.Business.DTOs;
 using ZocoTasks.Business.Interfaces;
-using ZocoTasks.Domain.Common;
 using ZocoTasks.Domain.Entities;
 using ZocoTasks.Domain.Enums;
 using ZocoTasks.Domain.Exceptions;
@@ -55,7 +54,7 @@ public class ComercioService : IComercioService
 
         // El formato del CUIT ya quedo validado arriba; aca se controla lo que
         // solo puede saberse consultando la base.
-        var cuit = Cuit.Normalizar(dto.Cuit);
+        var cuit = NormalizarCuit(dto.Cuit);
 
         await ValidarCuitDisponible(cuit, null, ct);
         await ValidarRubro(dto.RubroId, ct);
@@ -69,7 +68,8 @@ public class ComercioService : IComercioService
             Email = Limpiar(dto.Email),
             RubroId = dto.RubroId,
             Notas = Limpiar(dto.Notas),
-            Estado = EstadoComercioEnum.Nuevo
+            Estado = EstadoComercioEnum.Nuevo,
+            FechaCreacion = DateTime.UtcNow
         };
 
         _repository.Agregar(comercio);
@@ -93,7 +93,7 @@ public class ComercioService : IComercioService
             throw new EntidadNoEncontradaException("Comercio", id);
         }
 
-        var cuit = Cuit.Normalizar(dto.Cuit);
+        var cuit = NormalizarCuit(dto.Cuit);
 
         await ValidarCuitDisponible(cuit, id, ct);
         await ValidarRubro(dto.RubroId, ct);
@@ -105,6 +105,7 @@ public class ComercioService : IComercioService
         comercio.Email = Limpiar(dto.Email);
         comercio.RubroId = dto.RubroId;
         comercio.Notas = Limpiar(dto.Notas);
+        comercio.FechaActualizacion = DateTime.UtcNow;
 
         await _repository.GuardarConControlDeConcurrencia(comercio, versionEsperada, ct);
 
@@ -123,10 +124,10 @@ public class ComercioService : IComercioService
             throw new EntidadNoEncontradaException("Comercio", id);
         }
 
-        // Si la transicion es posible lo decide el dominio, no este servicio:
-        // es la unica pieza que conoce las reglas del pipeline. Si no lo es,
-        // lanza y el middleware lo traduce a 409.
+        // Si la transicion es valida lo decide el dominio (Comercio.CambiarEstado).
+        // Si no lo es, lanza y el middleware lo traduce a 409.
         comercio.CambiarEstado(dto.NuevoEstado);
+        comercio.FechaActualizacion = DateTime.UtcNow;
 
         await _repository.GuardarConControlDeConcurrencia(comercio, versionEsperada, ct);
 
@@ -176,6 +177,10 @@ public class ComercioService : IComercioService
     private static string? Limpiar(string? valor) =>
         string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
 
+    /// <summary>Quita guiones, puntos y espacios del CUIT.</summary>
+    private static string NormalizarCuit(string cuit) =>
+        new string(cuit.Where(char.IsDigit).ToArray());
+
     private static ComercioDetalleDto Mapear(Comercio c)
     {
         return new ComercioDetalleDto
@@ -190,7 +195,9 @@ public class ComercioService : IComercioService
             Rubro = c.Rubro?.Nombre ?? string.Empty,
             Estado = c.Estado,
             EstadoNombre = c.EstadoNavegacion?.Nombre ?? c.Estado.ToString(),
-            TransicionesPosibles = [.. MaquinaEstadoComercio.TransicionesDesde(c.Estado)],
+            // Todos los estados menos el actual: el movimiento entre estados
+            // es libre. El frontend arma el selector con esto.
+            TransicionesPosibles = [.. Enum.GetValues<EstadoComercioEnum>().Where(e => e != c.Estado)],
             Notas = c.Notas,
             FechaCreacion = c.FechaCreacion,
             FechaActualizacion = c.FechaActualizacion,
