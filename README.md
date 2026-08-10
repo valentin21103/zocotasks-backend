@@ -69,9 +69,6 @@ GET    /api/health                          sonda de vida, no toca la base
 GET    /api/health/db                       verifica conexión y migraciones
 ```
 
-El contrato completo, con los cuerpos de cada petición y respuesta, está en
-**[docs/FRONTEND.md](docs/FRONTEND.md)**.
-
 ### Códigos de respuesta
 
 Todos los errores salen como `ProblemDetails` (RFC 7807) con un campo `codigo`
@@ -500,12 +497,8 @@ tal en el `.csproj` con instrucción de removerlo cuando ASP.NET Core actualice.
 
 ---
 
-## Documentación adicional
-
-| Documento | Para qué |
-|---|---|
-| [docs/FRONTEND.md](docs/FRONTEND.md) | Contrato completo de la API para construir el frontend: cuerpos de petición y respuesta, códigos de error, flujo de concurrencia |
-| [.env.example](.env.example) | Contrato de configuración |
+Las variables de entorno requeridas están documentadas en
+[.env.example](.env.example).
 
 ---
 
