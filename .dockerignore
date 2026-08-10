@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+.git/
+.github/
+.vs/
+.vscode/
+.claude/
+docs/
+.env
+*.md
+ZocoTasks.Tests/
