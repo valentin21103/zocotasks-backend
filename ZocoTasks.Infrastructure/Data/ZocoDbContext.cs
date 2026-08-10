@@ -23,8 +23,6 @@ public class ZocoDbContext : DbContext
     public DbSet<EstadoComercio> EstadosComercio => Set<EstadoComercio>();
     public DbSet<TipoInteraccion> TiposInteraccion => Set<TipoInteraccion>();
 
-    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

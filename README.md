@@ -282,10 +282,8 @@ conciencia. Se documentan porque decidir qué no construir también es diseño:
 **Una tabla de historial de estados.** Registrar cada transición del pipeline
 daría trazabilidad del embudo, pero la consigna define la entrada del análisis
 como *«la información del comercio y de sus notas/interacciones»* — el historial
-no está en esa lista. Y el bonus de auditoría, cuando se implemente, registra
-**todo** cambio de forma genérica desde un interceptor de `SaveChanges`: una
-tabla dedicada a auditar únicamente el estado sería un caso particular de algo
-ya cubierto.
+no está en esa lista. Y una auditoría genérica (interceptor de `SaveChanges`
+que registra todo cambio) haría innecesaria una tabla dedicada solo al estado.
 
 *Costo asumido:* el análisis no puede saber hace cuánto que el comercio está en
 su estado actual. *Se justificaría* con requerimientos de reporting sobre el
@@ -501,7 +499,7 @@ producción, con los valores reales de `xmin` — ver
 | CI/CD | ✅ | GitHub Actions build + test; Render despliega solo si el CI pasa (`After CI checks pass`) |
 | Deploy público | ✅ | [zocotasks-backend.onrender.com](https://zocotasks-backend.onrender.com) |
 | Rate limiting | ✅ | 2 intentos por minuto por IP en `/api/auth/login` |
-| Auditoría | ⬜ | **No implementada.** La tabla `audit_log` existe pero no tiene código que la use. `fechaActualizacion` en `Comercio` (ver el JSON de detalle) es solo un timestamp de última edición, no un historial — no debe confundirse con este bonus |
+| Auditoría | ⬜ | **No implementada, a propósito.** La tabla `audit_log` se diseñó y se quitó del modelo por no tener código que la usara. `fechaActualizacion` en `Comercio` (ver el JSON de detalle) es solo un timestamp de última edición, no un historial — no debe confundirse con este bonus |
 
 ### Nota de seguridad: `Microsoft.OpenApi` fijado en 2.7.5
 
