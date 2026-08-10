@@ -47,7 +47,6 @@ conflictos de edición concurrente y análisis asistido por IA.
 | Docker + deploy público (Render) | ✅ Desplegado y verificado |
 | Rate limiting | ✅ Verificado en producción |
 | Frontend (Angular) | ✅ Desplegado en Vercel |
-| Auditoría | ⬜ No implementada |
 
 Lo marcado como verificado no significa "compila": significa que se comprobó su
 comportamiento contra PostgreSQL real.
@@ -282,14 +281,12 @@ conciencia. Se documentan porque decidir qué no construir también es diseño:
 **Una tabla de historial de estados.** Registrar cada transición del pipeline
 daría trazabilidad del embudo, pero la consigna define la entrada del análisis
 como *«la información del comercio y de sus notas/interacciones»* — el historial
-no está en esa lista. Y una auditoría genérica (interceptor de `SaveChanges`
-que registra todo cambio) haría innecesaria una tabla dedicada solo al estado.
+no está en esa lista.
 
 *Costo asumido:* el análisis no puede saber hace cuánto que el comercio está en
 su estado actual. *Se justificaría* con requerimientos de reporting sobre el
-embudo —tiempo promedio por etapa, tasa de conversión— donde el interceptor
-genérico no alcanza porque guarda los cambios como texto y no en formato
-consultable.
+embudo —tiempo promedio por etapa, tasa de conversión— que hoy no están
+pedidos.
 
 **Persistir el resultado del análisis de IA.** La consigna pide **generar** el
 análisis, no guardarlo. Regenerarlo en cada consulta garantiza que siempre
@@ -499,7 +496,6 @@ producción, con los valores reales de `xmin` — ver
 | CI/CD | ✅ | GitHub Actions build + test; Render despliega solo si el CI pasa (`After CI checks pass`) |
 | Deploy público | ✅ | [zocotasks-backend.onrender.com](https://zocotasks-backend.onrender.com) |
 | Rate limiting | ✅ | 2 intentos por minuto por IP en `/api/auth/login` |
-| Auditoría | ⬜ | **No implementada, a propósito.** La tabla `audit_log` se diseñó y se quitó del modelo por no tener código que la usara. `fechaActualizacion` en `Comercio` (ver el JSON de detalle) es solo un timestamp de última edición, no un historial — no debe confundirse con este bonus |
 
 ### Nota de seguridad: `Microsoft.OpenApi` fijado en 2.7.5
 
