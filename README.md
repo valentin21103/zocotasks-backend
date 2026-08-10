@@ -5,6 +5,10 @@ API REST en **ASP.NET Core 10** sobre **PostgreSQL**, con detección de
 conflictos de edición concurrente y análisis asistido por IA.
 
 > El frontend vive en un repositorio aparte: [`zocotasks-frontend`](https://github.com/valentin21103/zocotasks-frontend).
+>
+> **API desplegada:** https://zocotasks-backend.onrender.com — el plan
+> gratuito suspende el servicio tras un rato sin tráfico; la primera
+> petición después de eso tarda cerca de un minuto en responder.
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-336791)](https://www.postgresql.org/)
@@ -33,15 +37,16 @@ conflictos de edición concurrente y análisis asistido por IA.
 | Bloque | Estado |
 |---|---|
 | Modelo de dominio, persistencia y migración | ✅ Verificado contra base real |
-| API REST: CRUD, búsqueda, filtros, orden, paginación | ✅ 14 endpoints verificados |
+| API REST: CRUD, búsqueda, filtros, orden, paginación | ✅ Verificado |
 | Concurrencia optimista (ETag / If-Match / 409) | ✅ Verificado con dos escrituras concurrentes |
 | Validación server-side y manejo de errores | ✅ |
-| Tests unitarios | ✅ 30 en verde |
+| Autenticación JWT + roles Admin/Vendedor | ✅ Verificado en producción |
+| Feature "Analizar oportunidad" (Google Gemini) | ✅ Verificado contra el proveedor real |
+| Tests unitarios | ✅ 18 en verde |
 | CI (GitHub Actions) | ✅ |
-| Feature "Analizar oportunidad" | 🚧 En curso |
+| Docker + deploy público (Render) | ✅ Desplegado y verificado |
 | Tests de integración | ⬜ Pendiente |
-| Docker y deploy público | ⬜ Pendiente |
-| Autenticación, roles, auditoría, rate limiting | ⬜ Pendiente |
+| Auditoría, rate limiting | ⬜ Pendiente |
 
 Lo marcado como verificado no significa "compila": significa que se comprobó su
 comportamiento contra PostgreSQL real.
@@ -49,24 +54,36 @@ Ver [Verificaciones](#verificaciones-realizadas).
 
 ## Endpoints
 
+Todos requieren `Authorization: Bearer <token>`, salvo `/api/auth/login` y
+`/api/health`.
+
 ```
+POST   /api/auth/login                      público
+
 GET    /api/comercios                       búsqueda full text, filtros, orden, paginación
 GET    /api/comercios/{id}                  detalle + interacciones · devuelve ETag
 POST   /api/comercios                       201 + Location
 PUT    /api/comercios/{id}                  requiere If-Match
 PATCH  /api/comercios/{id}/estado           requiere If-Match
-DELETE /api/comercios/{id}                  baja lógica
+DELETE /api/comercios/{id}                  baja lógica · solo Admin
 
 GET    /api/comercios/{id}/interacciones
 POST   /api/comercios/{id}/interacciones
-DELETE /api/comercios/{id}/interacciones/{interaccionId}
+DELETE /api/comercios/{id}/interacciones/{interaccionId}    solo Admin
+
+POST   /api/comercios/{id}/analizar         "Analizar oportunidad" (Gemini)
 
 GET    /api/catalogos/estados
 GET    /api/catalogos/rubros
 GET    /api/catalogos/tipos-interaccion
 
-GET    /api/health                          sonda de vida, no toca la base
-GET    /api/health/db                       verifica conexión y migraciones
+GET    /api/rubros                          ABM de rubros · solo Admin
+POST   /api/rubros
+PUT    /api/rubros/{id}
+DELETE /api/rubros/{id}
+
+GET    /api/health                          sonda de vida, público, no toca la base
+GET    /api/health/db                       verifica conexión y migraciones · solo Admin
 ```
 
 ### Códigos de respuesta
@@ -77,6 +94,8 @@ estable, para que el cliente discrimine sin depender del texto.
 | Código | Cuándo |
 |---|---|
 | `400` | Formato inválido — incluye el detalle **campo por campo** |
+| `401` | Falta el token o no es válido |
+| `403` | El rol del usuario no alcanza (por ejemplo, Vendedor intentando eliminar) |
 | `404` | No existe o fue dado de baja |
 | `409` | Transición de estado inválida **o** conflicto de concurrencia |
 | `422` | Regla de negocio: CUIT repetido, rubro dado de baja |
@@ -139,8 +158,8 @@ Arquitectura en capas con las dependencias apuntando hacia adentro.
 - `Domain` no referencia ni un solo paquete NuGet. El compilador lo garantiza:
   es imposible que una entidad termine dependiendo de EF Core por descuido.
 - Ningún controller toca `DbContext`. Solo habla con servicios de `Business`.
-- `API` referencia a `Infrastructure` únicamente para registrar la inyección de
-  dependencias en el arranque.
+- `API` referencia a `Infrastructure` para registrar los repositorios y el
+  `DbContext` en `Program.cs`, en el arranque — no en el resto del código.
 
 La consecuencia práctica más visible: la columna `search_vector` es de tipo
 `tsvector`, cuyo tipo CLR pertenece a Npgsql. Como `Domain` no puede
@@ -460,9 +479,12 @@ real (Neon, `sa-east-1`):
 dotnet test
 ```
 
-> Pendiente — Bloque 7. Cubrirá validación de CUIT por módulo 11, transiciones
-> de estado válidas e inválidas, y el test de integración que demuestra el
-> **409 por conflicto de concurrencia**.
+18 tests unitarios en verde: transiciones de estado sobre `Comercio`, validación
+de rubros, y el servicio de análisis (incluye que una falla del proveedor de IA
+devuelva una respuesta degradada en vez de propagar el error).
+
+Pendientes los de integración: el más importante es el que demuestra el
+**409 por conflicto de concurrencia** contra una base real.
 
 ---
 
@@ -470,16 +492,16 @@ dotnet test
 
 | Bonus | Estado | Nota |
 |---|:---:|---|
+| Autenticación y roles | ✅ | JWT (12 h, sin refresh) + roles Admin/Vendedor, verificado en producción |
 | Búsqueda full text | ✅ | Columna generada + índice GIN, diccionario español con stemming verificado |
+| Paginación | ✅ | Con tope de 100 por página |
 | Migraciones | ✅ | Con seed de catálogos incluido |
-| Docker | ⬜ | Descartado para desarrollo: la base es gestionada (Neon). Se evaluará un `Dockerfile` para el deploy |
-| Paginación | 🚧 | Bloque 2 |
+| Docker | ✅ | Imagen multietapa, corre con usuario sin privilegios |
+| CI/CD | ✅ | GitHub Actions build + test; Render despliega solo si el CI pasa (`After CI checks pass`) |
+| Deploy público | ✅ | [zocotasks-backend.onrender.com](https://zocotasks-backend.onrender.com) |
+| Tests de integración | ⬜ | Pendiente |
 | Auditoría | ⬜ | Tabla creada, interceptor pendiente |
-| Autenticación y roles | ⬜ | Tablas creadas, implementación pendiente |
 | Rate limiting | ⬜ | `AddRateLimiter`, nativo en .NET 8+ |
-| Tests de integración | ⬜ | Contra PostgreSQL local, no Testcontainers |
-| CI/CD | ⬜ | GitHub Actions: build + test |
-| Deploy público | ⬜ | |
 
 ### Nota de seguridad: `Microsoft.OpenApi` fijado en 2.7.5
 

@@ -60,22 +60,7 @@ jobs:
           path: "**/TestResults/*.trx"
           if-no-files-found: ignore
 
-  desplegar:
-    name: Desplegar en Render
-    # La dependencia es lo que hace que esto sea un pipeline y no dos tareas
-    # sueltas: si los tests fallan, este job no arranca y el deploy no ocurre.
-    needs: build-y-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Disparar el deploy
-        env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-        run: |
-          if [ -z "$HOOK" ]; then
-            echo "::notice::RENDER_DEPLOY_HOOK no esta configurado todavia. Se omite el deploy."
-            exit 0
-          fi
-          curl --silent --show-error --fail-with-body -X POST "$HOOK"
-          echo "::notice::Deploy disparado en Render."
+# El deploy no se dispara desde aca. Render esta configurado en modo
+# "After CI checks pass": espera a que este workflow termine en verde sobre
+# main y recien ahi construye y despliega la imagen. Si los tests fallan, no
+# hay deploy.
