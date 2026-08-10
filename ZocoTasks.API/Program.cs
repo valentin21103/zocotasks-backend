@@ -8,6 +8,7 @@ using ZocoTasks.Business.Interfaces;
 using ZocoTasks.Business.Services;
 using ZocoTasks.Infrastructure.Data;
 using ZocoTasks.Infrastructure.Repositories;
+using ZocoTasks.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +49,17 @@ builder.Services.AddScoped<IComercioService, ComercioService>();
 builder.Services.AddScoped<IInteraccionService, InteraccionService>();
 builder.Services.AddScoped<ICatalogoService, CatalogoService>();
 builder.Services.AddScoped<IRubroService, RubroService>();
+builder.Services.AddScoped<IAnalisisService, AnalisisService>();
+
+// Proveedor de IA para "Analizar oportunidad".
+// El timeout es explicito: sin el, HttpClient espera 100 segundos por defecto y
+// el usuario se queda mirando un boton colgado. Si Gemini no contesto en 30
+// segundos, no va a contestar.
+builder.Services.AddHttpClient<IProveedorAnalisisIA, GeminiAnalisisProvider>(cliente =>
+{
+    cliente.BaseAddress = new Uri("https://generativelanguage.googleapis.com/");
+    cliente.Timeout = TimeSpan.FromSeconds(30);
+});
 
 builder.Services.AddScoped<GlobalExceptionHandler>();
 

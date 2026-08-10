@@ -11,13 +11,9 @@ namespace ZocoTasks.Domain.Common;
 /// </remarks>
 public static class Cuit
 {
-    /// <summary>Pesos que el algoritmo aplica a los primeros diez digitos.</summary>
     private static readonly int[] Pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
 
-    /// <summary>
-    /// Quita guiones, puntos y espacios. Se usa antes de validar y antes de
-    /// persistir, para que en la base siempre queden once digitos limpios.
-    /// </summary>
+
     public static string Normalizar(string? cuit)
     {
         if (string.IsNullOrWhiteSpace(cuit))
