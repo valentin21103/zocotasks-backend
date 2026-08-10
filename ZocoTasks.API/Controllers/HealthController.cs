@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ZocoTasks.Infrastructure.Data;
@@ -35,6 +36,12 @@ public class HealthController : ControllerBase
     /// health check que consulta la base es mas lento y no conviene usarlo como
     /// sonda de disponibilidad.
     /// </summary>
+    /// <remarks>
+    /// Solo Admin: expone el estado del esquema y las migraciones pendientes.
+    /// El /api/health de arriba queda publico porque Render lo usa como sonda
+    /// de vida, y si le pidiera token marcaria el servicio como caido.
+    /// </remarks>
+    [Authorize(Roles = "Admin")]
     [HttpGet("db")]
     public async Task<IActionResult> BaseDeDatos(CancellationToken ct)
     {

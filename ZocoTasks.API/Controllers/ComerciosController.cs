@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ZocoTasks.Business.DTOs;
 using ZocoTasks.Business.Interfaces;
 
 namespace ZocoTasks.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/comercios")]
 [Produces("application/json")]
@@ -119,8 +121,10 @@ public class ComerciosController : ControllerBase
     /// Baja logica. El comercio deja de aparecer en las consultas, pero sus
     /// interacciones se conservan.
     /// </summary>
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Eliminar(int id, CancellationToken ct)
     {

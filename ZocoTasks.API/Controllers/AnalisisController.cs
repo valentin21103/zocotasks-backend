@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ZocoTasks.Business.DTOs;
 using ZocoTasks.Business.Interfaces;
@@ -15,6 +16,7 @@ namespace ZocoTasks.API.Controllers;
 /// Solo se ejecuta cuando el usuario aprieta el boton. No hay analisis
 /// automatico al abrir la ficha.
 /// </remarks>
+[Authorize]
 [ApiController]
 [Route("api/comercios/{comercioId:int}/analizar")]
 [Produces("application/json")]

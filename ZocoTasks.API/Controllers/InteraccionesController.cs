@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ZocoTasks.Business.DTOs;
 using ZocoTasks.Business.Interfaces;
@@ -12,6 +13,7 @@ namespace ZocoTasks.API.Controllers;
 /// no existe por si sola: siempre pertenece a un comercio. La URL refleja el
 /// 1:N del modelo en lugar de esconderlo.
 /// </remarks>
+[Authorize]
 [ApiController]
 [Route("api/comercios/{comercioId:int}/interacciones")]
 [Produces("application/json")]
@@ -46,8 +48,10 @@ public class InteraccionesController : ControllerBase
             nameof(Listar), new { comercioId }, creada);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{interaccionId:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Eliminar(
         int comercioId, int interaccionId, CancellationToken ct)

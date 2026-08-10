@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ZocoTasks.Business.DTOs;
 using ZocoTasks.Business.Interfaces;
@@ -5,19 +6,14 @@ using ZocoTasks.Business.Interfaces;
 namespace ZocoTasks.API.Controllers;
 
 /// <summary>
-/// ABM de rubros.
+/// ABM de rubros. Administrarlos es exclusivo de Admin; el vendedor solo
+/// puede leerlos para llenar el combo del formulario.
 /// </summary>
 /// <remarks>
 /// Separado de <c>CatalogosController</c> a proposito: aquel es solo lectura y
-/// alimenta los combos; este modifica datos y, cuando se implemente la
-/// autenticacion, va restringido a Admin.
-///
-/// TODO al implementar JWT: [Authorize(Roles = "Admin")] a nivel de clase.
-/// Hoy no se puede poner porque no hay ningun esquema de autenticacion
-/// registrado y el atributo fallaria en tiempo de ejecucion. El frontend ya
-/// esconde la pantalla para los moderadores, pero eso es usabilidad: la
-/// autorizacion real tiene que estar aca.
+/// alimenta los combos; este modifica datos.
 /// </remarks>
+[Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/rubros")]
 [Produces("application/json")]

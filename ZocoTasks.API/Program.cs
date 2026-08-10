@@ -1,11 +1,15 @@
+using System.Text;
 using System.Text.Json.Serialization;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using ZocoTasks.API.Middleware;
 using ZocoTasks.Business.Interfaces;
 using ZocoTasks.Business.Services;
+using ZocoTasks.Domain.Entities;
 using ZocoTasks.Infrastructure.Data;
 using ZocoTasks.Infrastructure.Repositories;
 using ZocoTasks.Infrastructure.Services;
@@ -44,12 +48,14 @@ builder.Services.AddScoped<IComercioRepository, ComercioRepository>();
 builder.Services.AddScoped<IInteraccionRepository, InteraccionRepository>();
 builder.Services.AddScoped<ICatalogoRepository, CatalogoRepository>();
 builder.Services.AddScoped<IRubroRepository, RubroRepository>();
+builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
 
 builder.Services.AddScoped<IComercioService, ComercioService>();
 builder.Services.AddScoped<IInteraccionService, InteraccionService>();
 builder.Services.AddScoped<ICatalogoService, CatalogoService>();
 builder.Services.AddScoped<IRubroService, RubroService>();
 builder.Services.AddScoped<IAnalisisService, AnalisisService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Proveedor de IA para "Analizar oportunidad".
 // El timeout es explicito: sin el, HttpClient espera 100 segundos por defecto y
@@ -89,6 +95,36 @@ builder.Services.Configure<ApiBehaviorOptions>(opciones =>
 });
 
 builder.Services.AddOpenApi();
+
+// ---------------------------------------------------------------
+// Autenticacion JWT
+// ---------------------------------------------------------------
+var jwtClave = builder.Configuration["Jwt:Clave"];
+
+if (string.IsNullOrWhiteSpace(jwtClave))
+{
+    throw new InvalidOperationException(
+        "Falta 'Jwt:Clave'. Definirla en user-secrets o en la variable de " +
+        "entorno Jwt__Clave. Ver .env.example.");
+}
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opciones =>
+    {
+        opciones.TokenValidationParameters = new TokenValidationParameters
+        {
+            // Emisor y audiencia se desactivan a proposito: son utiles cuando
+            // varios sistemas comparten tokens, y aca hay uno solo. Lo que si
+            // importa es que el token no este vencido y que la firma sea valida.
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtClave))
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddCors(opciones =>
 {
@@ -133,10 +169,67 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
+// El orden importa: primero se averigua quien sos (Authentication), despues
+// si podes hacer lo que pediste (Authorization). Al reves, User siempre
+// llegaria vacio y todo daria 401.
+app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
+await SembrarUsuariosAsync(app);
+
 app.Run();
+
+/// <summary>
+/// Crea los usuarios de demostracion si la tabla esta vacia.
+/// </summary>
+/// <remarks>
+/// Se hace al arrancar y no con HasData en una migracion porque BCrypt genera
+/// una sal distinta cada vez: el hash no es determinista, y EF creeria que el
+/// dato cambio en cada build. Ademas evita tener que agregar una migracion.
+///
+/// Los roles (Admin, Vendedor) ya vienen sembrados desde la migracion inicial.
+/// </remarks>
+static async Task SembrarUsuariosAsync(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ZocoDbContext>();
+
+    if (await db.Usuarios.AnyAsync())
+    {
+        return;
+    }
+
+    const int RolAdmin = 1;
+    const int RolVendedor = 2;
+
+    // Credenciales de demostracion, documentadas en el README.
+    var semilla = new (string Email, string Nombre, string Password, int RolId)[]
+    {
+        ("admin@zoco.test",     "Administrador",    "Admin123!",    RolAdmin),
+        ("vendedor1@zoco.test", "Vendedor Uno",     "Vendedor123!", RolVendedor),
+        ("vendedor2@zoco.test", "Vendedor Dos",     "Vendedor123!", RolVendedor)
+    };
+
+    foreach (var (email, nombre, password, rolId) in semilla)
+    {
+        var usuario = new Usuario
+        {
+            Email = email,
+            NombreCompleto = nombre,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            Activo = true,
+            FechaCreacion = DateTime.UtcNow
+        };
+
+        usuario.UsuarioRoles.Add(new UsuarioRol { RolId = rolId });
+        db.Usuarios.Add(usuario);
+    }
+
+    await db.SaveChangesAsync();
+}
 
 /// <summary>
 /// Necesario para que WebApplicationFactory pueda tomar este ensamblado como

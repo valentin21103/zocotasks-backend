@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ZocoTasks.Business.DTOs;
 using ZocoTasks.Business.Interfaces;
@@ -12,6 +13,7 @@ namespace ZocoTasks.API.Controllers;
 /// agrega un rubro en la base, aparece en el formulario sin tocar el frontend
 /// ni hacer un deploy.
 /// </remarks>
+[Authorize]
 [ApiController]
 [Route("api/catalogos")]
 [Produces("application/json")]
