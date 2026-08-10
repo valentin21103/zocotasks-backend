@@ -97,6 +97,11 @@ Nuevo → Contactado → Interesado → Documentación → Aprobado
    └────────────────────────────────────────────→ Rechazado
 ```
 
+Ese es el orden natural, pero el movimiento entre estados es libre: se puede
+saltear etapas, corregir hacia atrás o reabrir una oportunidad ya cerrada. Un
+pipeline rígido dejaba trabado a un vendedor que cargó mal un estado, sin
+ninguna forma de corregirlo.
+
 Sobre cada comercio se registran **interacciones** (llamada, WhatsApp, reunión,
 email, nota interna), y a partir de esos datos el sistema genera un análisis de
 oportunidad: resumen, nivel de interés estimado, próximo paso recomendado, tres
@@ -282,10 +287,6 @@ segundos; y como los modelos de lenguaje no son determinísticos, el texto puede
 variar entre corridas. *Se justificaría* con volumen real de uso: la
 implementación sería SHA256 del contexto como clave de caché.
 
-> El razonamiento completo de cada decisión, con las alternativas descartadas y
-> las condiciones bajo las cuales elegiría distinto, está en
-> **[docs/DECISIONES.md](docs/DECISIONES.md)**.
-
 ---
 
 ## Concurrencia optimista
@@ -391,8 +392,7 @@ formato de .NET. La traducción:
 
 Y **quitá el sufijo `-pooler` del host**: la conexión pooled pasa por PgBouncer
 en *transaction mode*, que no sostiene los advisory locks que usan las
-migraciones de EF Core. Detalle completo en
-[docs/DECISIONES.md §4.2](docs/DECISIONES.md#42-conexión-directa-no-la-pooled).
+migraciones de EF Core.
 
 ---
 
@@ -504,8 +504,7 @@ tal en el `.csproj` con instrucción de removerlo cuando ASP.NET Core actualice.
 
 | Documento | Para qué |
 |---|---|
-| [docs/DECISIONES.md](docs/DECISIONES.md) | Cada decisión de arquitectura e infraestructura con sus alternativas descartadas y las condiciones bajo las que elegiría distinto |
-| [docs/GUIA-DE-ESTUDIO.md](docs/GUIA-DE-ESTUDIO.md) | Preguntas probables de una defensa técnica, con las respuestas |
+| [docs/FRONTEND.md](docs/FRONTEND.md) | Contrato completo de la API para construir el frontend: cuerpos de petición y respuesta, códigos de error, flujo de concurrencia |
 | [.env.example](.env.example) | Contrato de configuración |
 
 ---

@@ -31,6 +31,12 @@ project.fragment.lock.json
 # Preferencias locales de la maquina, no del proyecto.
 .claude/settings.local.json
 
+# --- Material de estudio y decisiones: solo para uso personal ----------------
+# No debe quedar publico en GitHub. README.md y docs/FRONTEND.md si son
+# publicos: son la documentacion pensada para que otros entiendan el proyecto.
+docs/DECISIONES.md
+docs/GUIA-DE-ESTUDIO.md
+
 # --- Tests y cobertura -------------------------------------------------------
 [Tt]est[Rr]esult*/
 coverage*.json

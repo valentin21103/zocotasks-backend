@@ -42,10 +42,12 @@ builder.Services.AddDbContext<ZocoDbContext>(options =>
 builder.Services.AddScoped<IComercioRepository, ComercioRepository>();
 builder.Services.AddScoped<IInteraccionRepository, InteraccionRepository>();
 builder.Services.AddScoped<ICatalogoRepository, CatalogoRepository>();
+builder.Services.AddScoped<IRubroRepository, RubroRepository>();
 
 builder.Services.AddScoped<IComercioService, ComercioService>();
 builder.Services.AddScoped<IInteraccionService, InteraccionService>();
 builder.Services.AddScoped<ICatalogoService, CatalogoService>();
+builder.Services.AddScoped<IRubroService, RubroService>();
 
 builder.Services.AddScoped<GlobalExceptionHandler>();
 
@@ -55,7 +57,12 @@ builder.Services.AddValidatorsFromAssemblyContaining<ComercioService>();
 // ---------------------------------------------------------------
 // API
 // ---------------------------------------------------------------
-builder.Services.AddControllers()
+builder.Services.AddControllers(opciones =>
+    {
+        // Un cuerpo roto tiene que salir como 400 y no como 500. Ver el
+        // comentario del filtro: es la contracara de SuppressModelStateInvalidFilter.
+        opciones.Filters.Add<CuerpoRequeridoFilter>();
+    })
     .AddJsonOptions(opciones =>
     {
         // Los enums viajan como texto ("Documentacion"), no como numero.

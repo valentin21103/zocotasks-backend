@@ -37,8 +37,10 @@ public class ComercioCambiarEstadoTests
     {
         var comercio = NuevoComercio();
 
+        // Mover un comercio al estado en el que ya esta no es un cambio: es la
+        // unica transicion que la maquina sigue rechazando.
         Assert.Throws<EstadoTransicionInvalidaException>(() =>
-            comercio.CambiarEstado(EstadoComercioEnum.Aprobado));
+            comercio.CambiarEstado(EstadoComercioEnum.Nuevo));
 
         // Lo importante no es solo que lance, sino que no haya mutado a medias.
         Assert.Equal(EstadoComercioEnum.Nuevo, comercio.Estado);
@@ -58,12 +60,23 @@ public class ComercioCambiarEstadoTests
     }
 
     [Fact]
-    public void UnComercioAprobadoYaNoSePuedeMover()
+    public void UnComercioAprobadoPuedeReabrirse()
     {
         var comercio = NuevoComercio(EstadoComercioEnum.Aprobado);
 
-        Assert.Throws<EstadoTransicionInvalidaException>(() =>
-            comercio.CambiarEstado(EstadoComercioEnum.Rechazado));
+        comercio.CambiarEstado(EstadoComercioEnum.Documentacion);
+
+        Assert.Equal(EstadoComercioEnum.Documentacion, comercio.Estado);
+    }
+
+    [Fact]
+    public void UnComercioPuedeSaltarDirectoAAprobado()
+    {
+        var comercio = NuevoComercio();
+
+        comercio.CambiarEstado(EstadoComercioEnum.Aprobado);
+
+        Assert.Equal(EstadoComercioEnum.Aprobado, comercio.Estado);
     }
 
     [Fact]

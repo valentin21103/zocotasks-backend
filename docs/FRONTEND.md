@@ -1,7 +1,7 @@
 # Brief del frontend — ZOCO Tasks
 
 Documento de traspaso para construir el frontend en su propio repositorio
-(`zocotasks-frontend`). Contiene el contrato completo de la API que ya está
+(`zocotasks-front`). Contiene el contrato completo de la API que ya está
 funcionando, para que el front se pueda construir sin adivinar nada.
 
 > **Cómo usar este documento:** copiarlo entero como contexto inicial al
@@ -16,15 +16,19 @@ Herramienta interna para un equipo comercial. Un vendedor registra comercios
 interesados en contratar ZOCO y les hace seguimiento hasta que se aprueban o se
 caen.
 
-El embudo es lineal y **no admite retrocesos**:
+El embudo tiene este orden natural:
 
 ```
 Nuevo → Contactado → Interesado → Documentación → Aprobado
   └───────────────────────────────────────────→ Rechazado
 ```
 
-Desde cualquier estado no terminal se puede ir al siguiente **o** a Rechazado.
-`Aprobado` y `Rechazado` son terminales: no tienen salida.
+Pero **el movimiento entre estados es libre**: se puede saltear etapas,
+retroceder para corregir una carga mal hecha, y reabrir un comercio ya
+`Aprobado` o `Rechazado`. La única transición que el backend rechaza es la de
+un estado a sí mismo (no es un cambio). `Aprobado` y `Rechazado` ya no son
+terminales en el sentido de "sin salida": siguen usándose para reportar
+oportunidades cerradas, pero se pueden reabrir.
 
 Sobre cada comercio se registran **interacciones** (llamada, WhatsApp, reunión,
 email, nota interna), y hay un botón **"Analizar oportunidad"** que manda los
@@ -41,7 +45,7 @@ Requisitos que vienen de la consigna y que se evalúan (el frontend pesa 15%):
 - [ ] Eliminar (con confirmación)
 - [ ] Ficha del comercio con el detalle y sus interacciones
 - [ ] Alta de interacciones desde la ficha
-- [ ] Cambio de estado respetando las transiciones válidas
+- [ ] Cambio de estado (el movimiento entre estados es libre, ver sección 1)
 - [ ] Botón **"Analizar oportunidad"** con estado de carga y resultado
 - [ ] **Manejo del 409**: mensaje claro de "otro usuario modificó este registro"
 - [ ] Interceptor HTTP para errores
@@ -103,7 +107,7 @@ Si otro usuario grabó en el medio:
 |---|---|---|
 | Se olvidó el `If-Match` | **428** | Es un bug del front, no del usuario |
 | El `If-Match` quedó viejo | **409** `codigo: "conflicto_de_concurrencia"` | "Otro usuario modificó este comercio mientras lo editabas." Ofrecer recargar |
-| Transición de estado inválida | **409** `codigo: "estado_transicion_invalida"` | "No se puede pasar de X a Y" |
+| Mandar el mismo estado que ya tiene | **409** `codigo: "estado_transicion_invalida"` | Es la única transición que el backend rechaza: no es un cambio |
 
 **Ojo con esto:** los dos últimos son 409. Hay que mirar el campo `codigo` del
 cuerpo para distinguirlos, no solo el status.
@@ -182,7 +186,7 @@ Devuelve `ETag` en los headers.
   "rubro": "Gastronomía",
   "estado": "Contactado",
   "estadoNombre": "Contactado",
-  "transicionesPosibles": ["Interesado", "Rechazado"],  // ← usar para el combo
+  "transicionesPosibles": ["Nuevo", "Interesado", "Documentacion", "Aprobado", "Rechazado"],
   "notas": "Dos sucursales. Problemas de conciliación.",
   "fechaCreacion": "2026-08-08T16:21:49.802Z",
   "fechaActualizacion": null,
@@ -191,9 +195,11 @@ Devuelve `ETag` en los headers.
 }
 ```
 
-> `transicionesPosibles` viene calculado por el backend según el estado actual.
-> **Usarlo para armar el selector de estado** en vez de hardcodear la lista: así
-> es imposible que el usuario elija una transición inválida.
+> `transicionesPosibles` trae **todos los estados menos el actual** — el
+> movimiento es libre, no solo hacia el siguiente paso del embudo. Igual
+> conviene armar el selector de estado con este campo y no con una lista
+> hardcodeada: si el backend algún día vuelve a restringir el pipeline, el
+> frontend se adapta sin cambios.
 
 ### 5.3 Crear
 
@@ -242,7 +248,7 @@ If-Match: "5121"        ← OBLIGATORIO
 ```
 
 Respuestas: `200` con el detalle y las nuevas `transicionesPosibles` ·
-`409` si la transición no existe · `428`.
+`409` si se manda el mismo estado que ya tiene el comercio · `428`.
 
 ### 5.6 Interacciones
 
@@ -395,7 +401,7 @@ Las claves de `errors` son los nombres de propiedad en **PascalCase**.
 | Status | `codigo` | Significado |
 |---|---|---|
 | 404 | `entidad_no_encontrada` | No existe o fue dado de baja |
-| 409 | `estado_transicion_invalida` | Trae además `estadoActual` y `estadoSolicitado` |
+| 409 | `estado_transicion_invalida` | Solo cuando se manda el mismo estado actual. Trae `estadoActual` y `estadoSolicitado` |
 | 409 | `conflicto_de_concurrencia` | Recargar y reintentar |
 | 422 | `regla_de_negocio` | CUIT repetido, rubro dado de baja |
 | 428 | `precondicion_requerida` | Falta `If-Match` — bug del front |
@@ -434,8 +440,10 @@ cada pantalla.
 **Servicio con el ETag adentro.** Que el resto del código no tenga que acordarse
 de guardar y reenviar el token — si algún camino se olvida, aparece un 428.
 
-**El combo de estado se arma con `transicionesPosibles`.** Ya viene filtrado por
-el backend según el estado actual del comercio.
+**El combo de estado se arma con `transicionesPosibles`.** Hoy trae todos los
+estados menos el actual (el movimiento es libre), pero conviene usar el campo
+igual: si el backend restringe el pipeline en el futuro, el frontend no
+necesita cambios.
 
 **Debounce en el buscador.** 300 ms alcanza; sin eso se dispara una consulta por
 tecla.
