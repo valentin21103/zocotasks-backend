@@ -45,8 +45,10 @@ conflictos de edición concurrente y análisis asistido por IA.
 | Tests unitarios | ✅ 18 en verde |
 | CI (GitHub Actions) | ✅ |
 | Docker + deploy público (Render) | ✅ Desplegado y verificado |
+| Rate limiting | ✅ Verificado en producción |
+| Frontend (Angular) | ✅ Desplegado en Vercel |
 | Tests de integración | ⬜ Pendiente |
-| Auditoría, rate limiting | ⬜ Pendiente |
+| Auditoría | ⬜ No implementada |
 
 Lo marcado como verificado no significa "compila": significa que se comprobó su
 comportamiento contra PostgreSQL real.
@@ -500,8 +502,8 @@ Pendientes los de integración: el más importante es el que demuestra el
 | CI/CD | ✅ | GitHub Actions build + test; Render despliega solo si el CI pasa (`After CI checks pass`) |
 | Deploy público | ✅ | [zocotasks-backend.onrender.com](https://zocotasks-backend.onrender.com) |
 | Rate limiting | ✅ | 2 intentos por minuto por IP en `/api/auth/login` |
-| Tests de integración | ⬜ | Pendiente |
-| Auditoría | ⬜ | Tabla creada, interceptor pendiente |
+| Tests de integración | ⬜ | Pendiente. El 409 de concurrencia está verificado a mano contra Neon, ver [Verificaciones](#verificaciones-realizadas) |
+| Auditoría | ⬜ | **No implementada.** La tabla `audit_log` existe pero no tiene código que la use. `fechaActualizacion` en `Comercio` (ver el JSON de detalle) es solo un timestamp de última edición, no un historial — no debe confundirse con este bonus |
 
 ### Nota de seguridad: `Microsoft.OpenApi` fijado en 2.7.5
 
