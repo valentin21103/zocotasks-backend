@@ -499,9 +499,9 @@ Pendientes los de integración: el más importante es el que demuestra el
 | Docker | ✅ | Imagen multietapa, corre con usuario sin privilegios |
 | CI/CD | ✅ | GitHub Actions build + test; Render despliega solo si el CI pasa (`After CI checks pass`) |
 | Deploy público | ✅ | [zocotasks-backend.onrender.com](https://zocotasks-backend.onrender.com) |
+| Rate limiting | ✅ | 2 intentos por minuto por IP en `/api/auth/login` |
 | Tests de integración | ⬜ | Pendiente |
 | Auditoría | ⬜ | Tabla creada, interceptor pendiente |
-| Rate limiting | ⬜ | `AddRateLimiter`, nativo en .NET 8+ |
 
 ### Nota de seguridad: `Microsoft.OpenApi` fijado en 2.7.5
 
